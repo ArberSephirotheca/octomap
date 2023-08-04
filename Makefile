@@ -3,7 +3,7 @@ CXX := g++
 CXXFLAGS := -std=c++11 -Wall -Wextra -g
 
 # Source files and executable name
-SRCS := main.cpp OctreeBase.cpp
+SRCS := main.cpp
 OBJS := $(SRCS:.cpp=.o)
 EXEC := octomap
 

@@ -1,21 +1,24 @@
 #include <iostream>
+#include <random>
 #include "OctreeBase.cpp"
+
 int main(){
-    Octomap::Octree octree = Octomap::Octree();
-    Point one = Point{0.2,0.4,0.5};
-    Point two = Point{0.3, 0.5, 0.2};
-    octree.insert(one);
-    octree.insert(two);
 
-    auto result1 = octree.query(one);
-    for (const auto& data : result1) {
-        std::cout << "Data: " << data << std::endl;
+    std::mt19937 generator(time(nullptr)); 
+    std::uniform_real_distribution<double> distribution(0.0, 1.0);
+
+    Octomap::Octree<Point> octree = Octomap::Octree<Point>();
+
+    std::array<Point, 10000> pointcloud;
+    for(auto& point : pointcloud){
+        point.x = distribution(generator);
+        point.y = distribution(generator);
+        point.z = distribution(generator);
     }
 
-    auto result2 = octree.query(two);
-    for (const auto& data : result2) {
-        std::cout << "Data: " << data << std::endl;
+    Code encoder = Code();
+    std::array<OctreeLeafNode<Point>*, 16> path;
+    for(auto point : pointcloud){
+        octree.insertNode(encoder.morton3D(point), path, 16);
     }
-
-    return 0;
 }
