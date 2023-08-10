@@ -2,7 +2,8 @@ class Code
 {
 public:
     Code() : code_(0), depth_(0) {}
-    Code(uint64_t code, int depth = 0) : code_(code), depth_(depth) {}
+    Code(uint32_t code, int depth = 0) : code_(code), depth_(depth) {
+    }
 
     uint32_t getCode() const { return code_; }
     // Get all children that this code can have from this code's depth to depth 0
@@ -52,7 +53,7 @@ public:
 
     int getDepth() const
     {
-        return this->depth_;
+        return depth_;
     }
 
     // see https://developer.nvidia.com/blog/thinking-parallel-part-iii-tree-construction-gpu/
@@ -81,6 +82,7 @@ public:
         return xx * 4 + yy * 2 + zz;
     }
     // problem: maybt change it to uint64_t?
-    uint64_t code_;
+    private:
+    uint32_t code_;
     int depth_;
 };

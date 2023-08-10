@@ -1,6 +1,6 @@
 # Compiler and flags
-CXX := g++
-CXXFLAGS := -std=c++11 -Wall -Wextra -g
+CXX := clang++
+CXXFLAGS := -std=c++17 -Wall -Wextra -g
 
 # Source files and executable name
 SRCS := main.cpp

@@ -1,24 +1,53 @@
-#include <iostream>
-#include <random>
 #include "OctreeBase.cpp"
+#include <chrono>
+#include <cstdlib>
+#include <iostream>
+int main() {
 
-int main(){
+  Octomap::Octree<Point> octree = Octomap::Octree<Point>();
 
-    std::mt19937 generator(time(nullptr)); 
-    std::uniform_real_distribution<double> distribution(0.0, 1.0);
+  std::vector<Point> pointcloud;
+  for (int i = 0; i < 280000; i++) {
+    Point point = Point{};
+    point.x = static_cast<double>(rand()) / RAND_MAX;
+    point.y = static_cast<double>(rand()) / RAND_MAX;
+    point.z = static_cast<double>(rand()) / RAND_MAX;
+    pointcloud.push_back(point);
+  }
 
-    Octomap::Octree<Point> octree = Octomap::Octree<Point>();
+  Code encoder = Code();
+  auto start = std::chrono::high_resolution_clock::now();
+  for (auto point : pointcloud) {
+    Code *code = new Code(encoder.morton3D(point), 0);
 
-    std::array<Point, 10000> pointcloud;
-    for(auto& point : pointcloud){
-        point.x = distribution(generator);
-        point.y = distribution(generator);
-        point.z = distribution(generator);
-    }
+    octree.insertNode(*code);
+  }
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+          .count();
 
-    Code encoder = Code();
-    std::array<OctreeLeafNode<Point>*, 16> path;
-    for(auto point : pointcloud){
-        octree.insertNode(encoder.morton3D(point), path, 16);
-    }
+  std::cout << "Time taken for insertion: " << duration << " milliseconds"
+            << std::endl;
+
+  start = std::chrono::high_resolution_clock::now();
+  for (auto point : pointcloud) {
+    Code code = Code(encoder.morton3D(point), 0);
+    // std::cout <<"search code: "<< code.code_<<std::endl;
+    // std::cout <<"search depth: "<< code.depth_<<std::endl;
+    const Point *result = octree.search(code);
+  }
+
+  end = std::chrono::high_resolution_clock::now();
+  duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
+                 .count();
+
+  std::cout << "Time taken for search: " << duration << " milliseconds"
+            << std::endl;
+
+  std::cout << "numer of leaf nodes: " << octree.getNumLeafNodes() << std::endl;
+  std::cout << "numer of inner nodes: " << octree.getNumInnerNodes()
+            << std::endl;
+  std::cout << "numer of inner leaf nodes: " << octree.getNumInnerLeafNodes()
+            << std::endl;
 }
