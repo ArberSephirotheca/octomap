@@ -100,6 +100,7 @@ public:
     Path path;
     path[depth_] = static_cast<LEAF_NODE *>(&getRoot());
     insertNode(code, path, depth_);
+    //std::cout<<"return path"<<std::endl;
     return path;
   }
   void insertNode(const Code &code, Path &path, int depth) {

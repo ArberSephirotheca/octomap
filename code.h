@@ -86,3 +86,20 @@ public:
     uint32_t code_;
     int depth_;
 };
+
+void radixSortMorton(std::vector<uint32_t>& mortonCodes) {
+    std::vector<unsigned int> temp(mortonCodes.size());
+
+    // Perform radix sort on each bit position
+    for (int shift = 0; shift < 30; ++shift) {
+        std::vector<int> buckets[2];
+        for (unsigned int code : mortonCodes) {
+            int bucketIndex = (code >> shift) & 1;
+            buckets[bucketIndex].push_back(code);
+        }
+        mortonCodes.clear();
+        for (int i = 0; i < 2; ++i) {
+            mortonCodes.insert(mortonCodes.end(), buckets[i].begin(), buckets[i].end());
+        }
+    }
+}
