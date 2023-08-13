@@ -42,7 +42,6 @@ namespace binary_radix_tree
 		~brt() { delete[] internal_nodes; }
 		brt(brt&& other);					// Move constructor
 		brt& operator=(brt&& other);		// Move assignment operator
-
 		int* internal_nodes;				// internal_nodes memory layout is {left_int, right_int}, single node memory size is size is sizeof(int)*2
 		const int key_num;					// number of keys used for the construction of the tree
 		
@@ -58,13 +57,13 @@ namespace binary_radix_tree
 
 
 	/** Given a sorted sequence of morton_keys, creates a binary radix tree. */
-	brt create(const int key_num, const std::vector<uint32_t>& morton_keys);
+	brt create(const int key_num, const std::vector<uint32_t>& morton_keys, int depth);
 
 	/** std::thread::hardware_concurrency() */
 	unsigned int hardware_concurrency();
 
 	/** Given a sorted sequence of morton_keys, creates a binary radix tree using resources from several threads. */
-	brt create_threaded(const int key_num, const std::vector<uint32_t>& morton_keys, const int thread_number = hardware_concurrency());
+	brt create_threaded(const int key_num, const std::vector<uint32_t>& morton_keys, int depth, const int thread_number = hardware_concurrency());
 
 	// -----------------------------
 	/** node indexing functions */

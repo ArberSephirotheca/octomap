@@ -20,7 +20,7 @@ public:
 
     int getChildIndex(int depth) const
     {
-        return (code_ >> (3 * depth - 1)) & 0x7;
+        return (code_ >> (3 * (depth - 1))) & 0x7;
     }
 
     Code getChild(int index)

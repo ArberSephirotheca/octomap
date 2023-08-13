@@ -8,10 +8,11 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <vector>
+#include <bitset>
 
 namespace Octomap {
 const int MAX_POINTS_PER_NODE = 4;
-const int MAX_DEPTH = 16;
+const int MAX_DEPTH = 8;
 const int MAX_OBJECTS_PER_NODE = 4;
 struct Block {
   std::array<std::array<double, 2>, 2> pixels;
@@ -72,6 +73,7 @@ public:
         return std::make_pair(node, depth + 1);
       }
       // otherwise, move to next level
+      std::cout<<"child index at depth "<<depth<<": "<<std::bitset<32>(code.getChildIndex(depth))<<std::endl;
       node = &getChild(inner_node, depth, code.getChildIndex(depth));
     }
     return std::make_pair(node, code.getDepth());
@@ -218,7 +220,7 @@ private:
   // Number of levels for the octree. Has to be [2, 21].
   // This determines the maximum volume that can be represented by the map
   // resolution * 2^(depth_levels) meter in each dimension.
-  int depth_ = 16;
+  int depth_ = 8;
   Point minBound;
   Point maxBound;
   ChunkedAllocator<Point> *allocator;
@@ -264,4 +266,6 @@ private:
    }
    */
 };
+
+
 } // namespace Octomap
