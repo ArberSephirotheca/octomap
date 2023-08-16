@@ -73,7 +73,7 @@ public:
         return std::make_pair(node, depth + 1);
       }
       // otherwise, move to next level
-      std::cout<<"child index at depth "<<depth<<": "<<std::bitset<32>(code.getChildIndex(depth))<<std::endl;
+      //std::cout<<"child index at depth "<<depth<<": "<<std::bitset<32>(code.getChildIndex(depth))<<std::endl;
       node = &getChild(inner_node, depth, code.getChildIndex(depth));
     }
     return std::make_pair(node, code.getDepth());

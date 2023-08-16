@@ -43,6 +43,8 @@ namespace binary_radix_tree
 		brt(brt&& other);					// Move constructor
 		brt& operator=(brt&& other);		// Move assignment operator
 		int* internal_nodes;				// internal_nodes memory layout is {left_int, right_int}, single node memory size is size is sizeof(int)*2
+		int* leaf_nodes;				
+		int* nodes_delta;
 		const int key_num;					// number of keys used for the construction of the tree
 		
 		// function to return the number of sizeof(int) slots in the memory the internal nodes occupy
@@ -64,6 +66,8 @@ namespace binary_radix_tree
 
 	/** Given a sorted sequence of morton_keys, creates a binary radix tree using resources from several threads. */
 	brt create_threaded(const int key_num, const std::vector<uint32_t>& morton_keys, int depth, const int thread_number = hardware_concurrency());
+	
+	void create_octree_nodes(const int key_num, const binary_radix_tree::brt& brt);
 
 	// -----------------------------
 	/** node indexing functions */
@@ -87,6 +91,8 @@ namespace binary_radix_tree
 			leaf = internal_value >> (sizeof(T) * 8 - 1);
 			value = internal_value & ~(T(1) << (sizeof(T) * 8 - 1)); // delete the last bit which tells if this is leaf or internal index
 		};
+		template<typename T> // set delta
+		inline void set_delta_value(const T& index, T* nodes_delta, const T& value) { nodes_delta[index] = value; };
 	};
 
 };

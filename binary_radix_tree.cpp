@@ -14,11 +14,11 @@ namespace binary_radix_tree
 	inline int delta(const std::vector<T>& morton_keys, int depth, const int& i, const int& j)
 	{
 		const int number_of_bits = sizeof(T) * 8;
-		const int number_of_effective_bits = depth*3;
-		for (int b = number_of_effective_bits - 1; b >= 0; --b)
+		//const int number_of_effective_bits = depth*3;
+		for (int b = number_of_bits - 1; b >= 0; --b)
 			if ((morton_keys[i] >> b) != (morton_keys[j] >> b))
-				return static_cast<int>(number_of_effective_bits - b - 1);
-		return number_of_effective_bits;
+				return static_cast<int>(number_of_bits - b - 1);
+		return number_of_bits;
 	}
 
 	/** does basic out of bounds checking before invoking delta */
@@ -33,7 +33,10 @@ namespace binary_radix_tree
 	{
 		// ________________________________________________________________
 		// determine the direction of the range = (+1 or -1)
-		const auto direction{ math::sign<int>(delta(morton_keys, depth, i, i + 1) - delta_safe(key_num, morton_keys, depth, i, i - 1)) };
+		int left_delta = delta_safe(key_num,morton_keys, depth, i, i + 1);
+		int right_delta = delta_safe(key_num, morton_keys, depth, i, i - 1);
+
+		const auto direction{ math::sign<int>(delta_safe(key_num,morton_keys, depth, i, i + 1) - delta_safe(key_num, morton_keys, depth, i, i - 1)) };
 		// sanity check. if it is zero, the set has duplicate data, and we do not resolve duplicate data in this implementation
 		assert(direction != 0); 
 		
@@ -58,6 +61,8 @@ namespace binary_radix_tree
 		// find the split position using binary search
 
 		const auto delta_node{ delta_safe(key_num, morton_keys, depth, i, j) }; // the distance of the prefix of i
+		std::cout<<"delta node "<<i <<": "<<delta_node<<std::endl;
+		binary_radix_tree::node::set_delta_value(i,brt.nodes_delta, delta_node);
 		auto s{ 0 };
 		
 		int t{ I };
@@ -68,7 +73,8 @@ namespace binary_radix_tree
 				s += t;
 
 		} while (t > 1);
-
+		
+		// split = split position
 		const auto split{ i + s * direction + math::min<int>(direction, 0) };
 
 		// ________________________________________________________________
@@ -125,6 +131,61 @@ binary_radix_tree::brt binary_radix_tree::create_threaded(const int key_num, con
 	return tree;
 }
 
+// Function to calculate the count of subprefixes divisible by 3
+int countDivisibleSubprefixes(int deltaParent, int deltaChild) {
+    int countChild = std::floor(deltaChild / 3);
+    int countParent = std::floor(deltaParent / 3);
+    return countChild - countParent;
+}
+
+// newly added
+void binary_radix_tree::create_octree_nodes(const int key_num, const binary_radix_tree::brt& brt){
+	std::vector<int> counts(key_num, 0);
+	counts[0] = 1;
+	int cnt;
+	int left_idx;
+	int right_idx;
+	bool leaf;
+	for(int i = 0; i < key_num-1; ++i){
+		cnt = 0;
+		// get the length of prefix bit of current internal node
+		int parnet_prefix = brt.nodes_delta[i];
+		std::cout << "prefix of internal node "<< i <<": "<<parnet_prefix<<std::endl;
+		// get the left child index at sorted morton code array
+		binary_radix_tree::node::get_internal_left(i, brt.internal_nodes, left_idx, leaf);
+		std::cout <<"left idx: " <<left_idx<<std::endl;
+		int left_prefix = brt.nodes_delta[left_idx];
+		std::cout <<"prefix of left child node: "<<left_prefix<<std::endl;
+		//  get the right child index at sorted morton code array
+		binary_radix_tree::node::get_internal_right(i, brt.internal_nodes, right_idx, leaf);
+		int right_prefix = brt.nodes_delta[right_idx];
+		std::cout <<"right idx: " <<right_idx<<std::endl;
+		std::cout <<"prefix of right child node: "<<right_prefix<<std::endl<<std::endl;
+		//cnt += countDivisibleSubprefixes(parnet_prefix, left_prefix);
+		//cnt += countDivisibleSubprefixes(parnet_prefix, right_prefix);
+		
+		// counts ony when (delta_parent-delta_child) is divisible by three
+		if((left_prefix-parnet_prefix) %3 == 0){
+			for(int j = parnet_prefix+1; j <= left_prefix; ++j){
+				if(j%3 == 0){
+					cnt += 1;
+				}
+			}
+		}
+		if((right_idx-parnet_prefix) %3 == 0){
+			for(int j = parnet_prefix+1; j <= right_idx; ++j){
+				if(j %3 == 0){
+					cnt += 1;
+				}
+			}
+		}		
+		counts[i+1] = cnt;
+	}
+
+	for(int i = 0; i < key_num; i++){
+		std::cout<<"counts[" << i<<"]"<<counts[i]<<std::endl;
+	}
+}
 
 /** */
 unsigned int binary_radix_tree::hardware_concurrency()
@@ -142,7 +203,9 @@ unsigned int binary_radix_tree::hardware_concurrency()
 
 /** constructor */
 binary_radix_tree::brt::brt(const int key_num) :
-	internal_nodes(new int[(key_num - 1) * 2]),
+	internal_nodes(new int[(key_num - 1)*2]),
+	leaf_nodes(new int[(key_num-1)*2]), // store the child index of each internal node 
+	nodes_delta(new int[(key_num - 1)]),
 	key_num(key_num)
 {
 }
@@ -151,9 +214,13 @@ binary_radix_tree::brt::brt(const int key_num) :
 /** move constructor */
 binary_radix_tree::brt::brt(brt&& other)
 	: internal_nodes(other.internal_nodes)
+	, leaf_nodes(other.leaf_nodes)
+	, nodes_delta(other.nodes_delta)
 	, key_num(other.key_num)
 {
 	other.internal_nodes = nullptr;
+	other.leaf_nodes = nullptr;
+	other.nodes_delta = nullptr;
 	const_cast<int&>(other.key_num) = 0;
 }
 
@@ -162,9 +229,15 @@ binary_radix_tree::brt & binary_radix_tree::brt::operator=(brt && other)
 {
 	if (this != &other) {           
 		delete[] this->internal_nodes; 
+		delete[] this->leaf_nodes;
+		delete[] this->nodes_delta;
 		this->internal_nodes = other.internal_nodes;
+		this->leaf_nodes = other.leaf_nodes;
+		this->nodes_delta = other.nodes_delta;
 		const_cast<int&>(this->key_num) = other.key_num;
 		other.internal_nodes = nullptr;
+		other.leaf_nodes = nullptr;
+		other.nodes_delta = nullptr;
 		const_cast<int&>(other.key_num) = 0;
 	}
 	return *this;
