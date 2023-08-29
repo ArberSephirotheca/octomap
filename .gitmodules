@@ -7,3 +7,6 @@
 [submodule "extern/cxxopt"]
 	path = extern/cxxopt
 	url = https://github.com/jarro2783/cxxopts.git
+[submodule "extern/cxxopts"]
+	path = extern/cxxopts
+	url = https://github.com/jarro2783/cxxopts.git
