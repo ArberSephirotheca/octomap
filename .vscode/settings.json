@@ -71,6 +71,10 @@
         "chrono": "cpp",
         "thread": "cpp",
         "semaphore": "cpp",
-        "stop_token": "cpp"
+        "stop_token": "cpp",
+        "iomanip": "cpp",
+        "valarray": "cpp",
+        "unordered_set": "cpp",
+        "regex": "cpp"
     }
 }

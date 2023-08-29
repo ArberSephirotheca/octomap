@@ -1,7 +1,7 @@
 #ifndef POINT_CLOUD_H
 #define POINT_CLOUD_H
 #include <vector>
-#include "Point.h"
+#include "Point.hpp"
 template <typename T, typename = std::enable_if_t<std::is_base_of_v<Point, T>>>
 class PointCloud{
     public:
