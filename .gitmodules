@@ -1,12 +1,6 @@
-[submodule "extern/extern/libmorton"]
-	path = extern/extern/libmorton
-	url = git@github.com:Wehrdo/libmorton.git
 [submodule "extern/libmorton"]
 	path = extern/libmorton
 	url = git@github.com:Wehrdo/libmorton.git
-[submodule "extern/cxxopt"]
-	path = extern/cxxopt
-	url = https://github.com/jarro2783/cxxopts.git
 [submodule "extern/cxxopts"]
 	path = extern/cxxopts
 	url = https://github.com/jarro2783/cxxopts.git
