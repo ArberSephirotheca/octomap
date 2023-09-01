@@ -1,15 +1,14 @@
 #include "binary_radix_tree.hpp"
 
 #include <cassert>
+#include <thread>
 
 #include "morton_util.hpp"
 
 namespace brt {
 
-void ProcessInternalNodes(const int key_num, const Code_t* morton_keys,
-                          InnerNodes* brt_nodes) {
-  const auto num_brt_nodes = key_num - 1;
-  for (int i = 0; i < num_brt_nodes; ++i) {
+void process_internal_node(const int key_num, const Code_t* morton_keys,
+                          InnerNodes* brt_nodes, int i) {
     const auto direction{
         math::sign<int>(Delta(morton_keys, i, i + 1) -
                         DeltaSafe(key_num, morton_keys, i, i - 1))};
@@ -64,7 +63,28 @@ void ProcessInternalNodes(const int key_num, const Code_t* morton_keys,
 
     if (math::min<int>(i, j) != split) brt_nodes[left].parent = i;
     if (math::max<int>(i, j) != split + 1) brt_nodes[right].parent = i;
-  }
+  
+}
+void create_binary_radix_tree_threaded(const int key_num, const Code_t* morton_keys,
+                          InnerNodes* brt_nodes, int thread_number) {
+	// compute the number of elements a thread will cover
+	const auto elements_per_thread = math::divide_ceil<int>(key_num, thread_number);
+	
+	const auto worker_fn = [key_num, &morton_keys, &brt_nodes, elements_per_thread](int i) {
+		for (int t = i * elements_per_thread; t < math::min(key_num - 1, (i + 1)*elements_per_thread); ++t)
+			process_internal_node(key_num, morton_keys, brt_nodes, t);
+	};
+
+	// Create the threads
+	std::vector<std::thread> workers;
+	for (int i = 0; i < thread_number; ++i)
+		workers.push_back(std::thread(worker_fn, i));
+	for (auto& t : workers)	t.join();
 }
 
+void create_binary_radix_tree(const int key_num, const Code_t* morton_keys,
+                          InnerNodes* brt_nodes) {
+	for (int i = 0; i < key_num-1; ++i)
+		process_internal_node(key_num, morton_keys, brt_nodes, i);
+  }
 }  // namespace brt

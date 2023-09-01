@@ -1,6 +1,7 @@
 #include "octree.hpp"
 
 #include <iostream>
+#include <thread>
 
 #include "binary_radix_tree.hpp"
 namespace oct {
@@ -39,6 +40,24 @@ void CalculateEdgeCount(int* edge_count, const brt::InnerNodes* inners,
   }
 }
 
+void CalculateEdgeCountThreaded(int* edge_count, const brt::InnerNodes* inners,
+                        const int num_brt_nodes, int num_threads){
+	const auto elements_per_thread = math::divide_ceil<int>(num_brt_nodes, num_threads);
+	const auto worker_fn = [edge_count, inners, num_brt_nodes, elements_per_thread](int i) {
+		for (int t = i * elements_per_thread; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread); ++t){
+        const int my_depth = inners[t].delta_node / 3;
+        const int parent_depth = inners[inners[t].parent].delta_node / 3;
+        edge_count[t] = my_depth - parent_depth;
+      }
+	};
+
+	// Create the threads
+	std::vector<std::thread> workers;
+	for (int i = 0; i < num_threads; ++i)
+		workers.push_back(std::thread(worker_fn, i));
+	for (auto& t : workers)	t.join();
+
+                        }
 void MakeNodes(OctNode* nodes, const int* node_offsets, const int* edge_count,
                const Code_t* morton_keys, const brt::InnerNodes* inners,
                const int num_brt_nodes, const float tree_range) {
@@ -92,6 +111,76 @@ void MakeNodes(OctNode* nodes, const int* node_offsets, const int* edge_count,
   }
 }
 
+void MakeNodesThreaded(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int num_brt_nodes, int num_threads, float tree_range){
+                
+  // the root doesn't represent level 0 of the "entire" octree
+  const int root_level = inners[0].delta_node / 3;
+  const Code_t root_prefix = morton_keys[0] >> (kCodeLen - (root_level * 3));
+
+  nodes[0].cornor = CodeToPoint(root_prefix << (kCodeLen - (root_level * 3)));
+  nodes[0].cell_size = tree_range;
+
+	const auto elements_per_thread = math::divide_ceil<int>(num_brt_nodes, num_threads);
+  // skipping root
+
+  	const auto worker_fn = [nodes, node_offsets, edge_count,morton_keys, inners, num_brt_nodes, tree_range, root_level, elements_per_thread](int i) {
+		for (int t = i * elements_per_thread; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread); ++t)
+			MakeNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, root_level, t, tree_range);
+	};
+
+
+	// Create the threads
+	std::vector<std::thread> workers;
+	for (int i = 0; i < num_threads; ++i)
+		workers.push_back(std::thread(worker_fn, i));
+	for (auto& t : workers)	t.join();
+}
+
+void MakeNodesHelper(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               const int root_level, int i, float tree_range){
+    int oct_idx = node_offsets[i];
+    const int n_new_nodes = edge_count[i];
+    for (int j = 0; j < n_new_nodes - 1; ++j) {
+      const int level = inners[i].delta_node / 3 - j;
+      const Code_t node_prefix = morton_keys[i] >> (kCodeLen - (3 * level));
+      const int child_idx = static_cast<int>(node_prefix & 0b111);
+      const int parent = oct_idx + 1;
+
+      nodes[parent].SetChild(oct_idx, child_idx);
+
+      // calculate corner point (LSB have already been shifted off)
+      nodes[oct_idx].cornor =
+          CodeToPoint(node_prefix << (kCodeLen - (3 * level)));
+
+      // each cell is half the size of the level above it
+      nodes[oct_idx].cell_size =
+          tree_range / static_cast<float>(1 << (level - root_level));
+
+      oct_idx = parent;
+    }
+
+    if (n_new_nodes > 0) {
+      int rt_parent = inners[i].parent;
+      while (edge_count[rt_parent] == 0) {
+        rt_parent = inners[rt_parent].parent;
+      }
+      const int oct_parent = node_offsets[rt_parent];
+      const int top_level = inners[i].delta_node / 3 - n_new_nodes + 1;
+      const Code_t top_node_prefix =
+          morton_keys[i] >> (kCodeLen - (3 * top_level));
+      const int child_idx = static_cast<int>(top_node_prefix & 0b111);
+
+      nodes[oct_parent].SetChild(oct_idx, child_idx);
+      nodes[oct_idx].cornor =
+          CodeToPoint(top_node_prefix << (kCodeLen - (3 * top_level)));
+      nodes[oct_idx].cell_size =
+          tree_range / static_cast<float>(1 << (top_level - root_level));
+    }
+}
+
 void LinkNodes(OctNode* nodes, const int* node_offsets, const int* edge_count,
                const Code_t* morton_keys, const brt::InnerNodes* inners,
                const int num_brt_nodes) {
@@ -135,6 +224,69 @@ void LinkNodes(OctNode* nodes, const int* node_offsets, const int* edge_count,
       nodes[bottom_oct_idx].SetLeaf(leaf_idx, child_idx);
     }
   }
+}
+
+
+void LinkNodesThreaded(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int num_brt_nodes, int num_threads){
+
+	const auto elements_per_thread = math::divide_ceil<int>(num_brt_nodes, num_threads);
+
+  	const auto worker_fn = [nodes, node_offsets, edge_count, morton_keys, inners, num_brt_nodes, elements_per_thread](int i) {
+		for (int t = i * elements_per_thread; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread); ++t)
+			LinkNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, t);
+	};
+
+
+	// Create the threads
+	std::vector<std::thread> workers;
+	for (int i = 0; i < num_threads; ++i)
+		workers.push_back(std::thread(worker_fn, i));
+	for (auto& t : workers)	t.join();
+}
+
+void LinkNodesHelper(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int i){
+    if (IsLeaf(inners[i].left)) {
+      const int leaf_idx = GetLeafIndex(inners[i].left);
+      const int leaf_level = inners[i].delta_node / 3 + 1;
+      const Code_t leaf_prefix =
+          morton_keys[leaf_idx] >> (kCodeLen - (3 * leaf_level));
+
+      const int child_idx = static_cast<int>(leaf_prefix & 0b111);
+      // walk up the radix tree until finding a node which contributes an
+      // octnode
+      int rt_node = i;
+      while (edge_count[rt_node] == 0) {
+        rt_node = inners[rt_node].parent;
+      }
+      // the lowest octnode in the string contributed by rt_node will be the
+      // lowest index
+      const int bottom_oct_idx = node_offsets[rt_node];
+      nodes[bottom_oct_idx].SetLeaf(leaf_idx, child_idx);
+    }
+
+    if (IsLeaf(inners[i].right)) {
+      const int leaf_idx = GetLeafIndex(inners[i].left) + 1;
+      const int leaf_level = inners[i].delta_node / 3 + 1;
+      const Code_t leaf_prefix =
+          morton_keys[leaf_idx] >> (kCodeLen - (3 * leaf_level));
+
+      const int child_idx = static_cast<int>(leaf_prefix & 0b111);
+
+      // walk up the radix tree until finding a node which contributes an
+      // octnode
+      int rt_node = i;
+      while (edge_count[rt_node] == 0) {
+        rt_node = inners[rt_node].parent;
+      }
+      // the lowest octnode in the string contributed by rt_node will be the
+      // lowest index
+      const int bottom_oct_idx = node_offsets[rt_node];
+      nodes[bottom_oct_idx].SetLeaf(leaf_idx, child_idx);
+    }
 }
 
 void CheckTree(const Code_t prefix, const int code_len, const OctNode* nodes,

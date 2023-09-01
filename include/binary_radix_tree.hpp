@@ -72,9 +72,11 @@ struct InnerNodes {
  * @param morton_keys: sorted morton codes
  * @param brt_nodes: output an array of internal nodes of size 'n-1'
  */
-void ProcessInternalNodes(int key_num, const Code_t* morton_keys,
+void create_binary_radix_tree(int key_num, const Code_t* morton_keys,
                           InnerNodes* brt_nodes);
 
+void create_binary_radix_tree_threaded(int key_num, const Code_t* morton_keys,
+                          InnerNodes* brt_nodes, int thread_number);
 namespace node {
 
 template <typename T>

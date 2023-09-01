@@ -61,6 +61,8 @@ struct OctNode {
 void CalculateEdgeCount(int* edge_count, const brt::InnerNodes* inners,
                         int num_brt_nodes);
 
+void CalculateEdgeCountThreaded(int* edge_count, const brt::InnerNodes* inners,
+                        const int num_brt_nodes, int num_threads);
 /**
  * @brief Make the unlinked octree nodes from the binary radix tree.
  * https://github.com/ahmidou/ShapeExtraction/blob/master/src/Octree.cu
@@ -77,6 +79,13 @@ void MakeNodes(OctNode* nodes, const int* node_offsets, const int* edge_count,
                const Code_t* morton_keys, const brt::InnerNodes* inners,
                int num_brt_nodes, float tree_range = 1.0f);
 
+void MakeNodesThreaded(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int num_brt_nodes, int num_threads, float tree_range = 1.0f);
+
+void MakeNodesHelper(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               const int root_level, int i, float tree_range = 1.0f);
 /**
  * @brief Link the octree nodes together.
  *
@@ -90,6 +99,14 @@ void MakeNodes(OctNode* nodes, const int* node_offsets, const int* edge_count,
 void LinkNodes(OctNode* nodes, const int* node_offsets, const int* edge_count,
                const Code_t* morton_keys, const brt::InnerNodes* inners,
                int num_brt_nodes);
+
+void LinkNodesThreaded(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int num_brt_nodes, int num_threads);
+
+void LinkNodesHelper(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int i);
 
 void CheckTree(const Code_t prefix, int code_len, const OctNode* nodes,
                int oct_idx, const Code_t* codes);

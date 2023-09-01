@@ -1,4 +1,5 @@
 #include <Eigen/Dense>
+#include <thread>
 #include <algorithm>
 #include <array>
 #include <bitset>
@@ -6,12 +7,17 @@
 #include <cxxopts.hpp>
 #include <iostream>
 #include <numeric>
+#include <mutex>
 #include <random>
+#include <execution>
 
 #include "binary_radix_tree.hpp"
 #include "morton_util.hpp"
 #include "octree.hpp"
 #include "util.hpp"
+
+const int num_threads = std::thread::hardware_concurrency();
+std::mutex mtx; // Mutex for protecting shared data
 
 template <uint8_t Axis>
 bool CompareAxis(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
@@ -22,6 +28,74 @@ bool CompareAxis(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
   } else {
     return a.z() < b.z();
   }
+}
+// Function to perform counting sort on a specific digit's place (0 or 1)
+void countingSort(std::vector<Code_t>& arr, int exp, int threadId, int numThreads) {
+    const size_t n = arr.size();
+    std::vector<Code_t> output(n);
+    std::vector<Code_t> count(2, 0);
+
+    for (size_t i = threadId; i < n; i += numThreads) {
+        count[(arr[i] >> exp) & 1]++;
+    }
+
+    // Synchronize threads before updating the count array
+    std::mutex mtx;
+    std::unique_lock<std::mutex> lock(mtx);
+    for (int i = 0; i < numThreads; i++) {
+        count[0] += count[2 * i];
+        count[1] += count[2 * i + 1];
+    }
+    lock.unlock();
+
+    for (size_t i = threadId; i < n; i += numThreads) {
+        output[count[(arr[i] >> exp) & 1]++] = arr[i];
+    }
+
+    for (size_t i = threadId; i < n; i += numThreads) {
+        arr[i] = output[i];
+    }
+}
+
+// Function to perform parallel radix sort using multiple threads
+void parallelRadixSort(std::vector<Code_t>& arr, int numThreads) {
+    //const size_t n = arr.size();
+    const int numBits = 64; // Assuming 64-bit Morton codes
+
+    for (int exp = 0; exp < numBits; exp++) {
+        std::vector<std::thread> threads(numThreads);
+
+        for (int i = 0; i < numThreads; i++) {
+            threads[i] = std::thread(countingSort, std::ref(arr), exp, i, numThreads);
+        }
+
+        for (int i = 0; i < numThreads; i++) {
+            threads[i].join();
+        }
+    }
+}
+
+void compute_morton_code_threaded(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range ){
+
+	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
+  std::cout<<"elements_per_thread: "<<elements_per_thread<<std::endl;
+  	const auto worker_fn = [&inputs, &morton_keys,input_size, min_coord, range, elements_per_thread](int i) {
+      int start = i * elements_per_thread;
+      int end = math::min(input_size, (i + 1)*elements_per_thread);
+      auto insertPosition = morton_keys.begin() + start;
+      std::insert_iterator<std::vector<Code_t>> insertIter(morton_keys, insertPosition);
+			          std::transform(inputs.begin() + start, inputs.begin() + end,
+                            insertIter, [&](const auto& vec) {
+                               return PointToCode(vec.x(), vec.y(), vec.z(), min_coord, range);
+                           });
+	};
+
+
+	// Create the threads
+	std::vector<std::thread> workers;
+	for (int i = 0; i < num_threads; ++i)
+		workers.push_back(std::thread(worker_fn, i));
+	for (auto& t : workers)	t.join();
 }
 
 int main(int argc, char** argv) {
@@ -99,6 +173,7 @@ int main(int argc, char** argv) {
   std::vector<Code_t> morton_keys;
   morton_keys.reserve(input_size);
 
+  
   TimeTask("Compute Morton Codes", [&] {
     std::transform(inputs.begin(), inputs.end(),
                    std::back_inserter(morton_keys), [&](const auto& vec) {
@@ -106,6 +181,8 @@ int main(int argc, char** argv) {
                                         range);
                    });
   });
+  
+  //TimeTask("Compute Morton Codes", [&]{compute_morton_code_threaded(input_size, inputs, morton_keys, min_coord, range); });
 
   // [Step 2] Sort Morton Codes by Key
   TimeTask("Sort Morton Codes",
@@ -126,13 +203,13 @@ int main(int argc, char** argv) {
                               << std::endl;
                   });
   }
-
+  
   // [Step 5] Build Binary Radix Tree
   const auto num_brt_nodes = morton_keys.size() - 1;
   std::vector<brt::InnerNodes> inners(num_brt_nodes);
 
   TimeTask("Build Binary Radix Tree", [&] {
-    ProcessInternalNodes(morton_keys.size(), morton_keys.data(), inners.data());
+    create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), inners.data(), num_threads);
   });
 
   if (print) {
@@ -157,7 +234,7 @@ int main(int argc, char** argv) {
   // [Step 6.1] Prefix sum
   std::vector<int> oc_node_offsets(num_brt_nodes + 1);
   TimeTask("Prefix Sum", [&] {
-    std::partial_sum(edge_count.begin(), edge_count.end(),
+    std::inclusive_scan(std::execution::par, edge_count.begin(), edge_count.end(),
                      oc_node_offsets.begin() + 1);
     oc_node_offsets[0] = 0;
   });
@@ -175,14 +252,21 @@ int main(int argc, char** argv) {
 
   // [Step 7] Create unlinked BH nodes
   TimeTask("Make Unlinked BH nodes", [&] {
-    MakeNodes(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
-              morton_keys.data(), inners.data(), num_brt_nodes, range);
+    MakeNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
+              morton_keys.data(), inners.data(), num_brt_nodes, num_threads, range);
   });
 
   // [Step 8] Linking BH nodes
+  /*
   TimeTask("Link BH nodes", [&] {
     LinkNodes(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
               morton_keys.data(), inners.data(), num_brt_nodes);
+  });
+  */
+  
+   TimeTask("Link BH nodes", [&] {
+    LinkNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
+              morton_keys.data(), inners.data(), num_brt_nodes, num_threads);
   });
 
   CheckTree(root_prefix, root_level * 3, bh_nodes.data(), 0,
@@ -207,6 +291,7 @@ int main(int argc, char** argv) {
       std::cout << "\n";
     }
   }
+
 
   return EXIT_SUCCESS;
 }
