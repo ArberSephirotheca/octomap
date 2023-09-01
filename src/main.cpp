@@ -10,6 +10,7 @@
 #include <mutex>
 #include <random>
 #include <execution>
+#include <omp.h>
 
 #include "binary_radix_tree.hpp"
 #include "morton_util.hpp"
@@ -78,16 +79,11 @@ void parallelRadixSort(std::vector<Code_t>& arr, int numThreads) {
 void compute_morton_code_threaded(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range ){
 
 	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
-  std::cout<<"elements_per_thread: "<<elements_per_thread<<std::endl;
   	const auto worker_fn = [&inputs, &morton_keys,input_size, min_coord, range, elements_per_thread](int i) {
-      int start = i * elements_per_thread;
-      int end = math::min(input_size, (i + 1)*elements_per_thread);
-      auto insertPosition = morton_keys.begin() + start;
-      std::insert_iterator<std::vector<Code_t>> insertIter(morton_keys, insertPosition);
-			          std::transform(inputs.begin() + start, inputs.begin() + end,
-                            insertIter, [&](const auto& vec) {
-                               return PointToCode(vec.x(), vec.y(), vec.z(), min_coord, range);
-                           });
+      for(int t = i * elements_per_thread; t < math::min(input_size, (i + 1)*elements_per_thread); ++t){
+        Eigen::Vector3f input = inputs[t];
+        morton_keys[t] = PointToCode(input.x(), input.y(), input.z(), min_coord, range);
+      }
 	};
 
 
@@ -96,6 +92,56 @@ void compute_morton_code_threaded(const int input_size, std::vector<Eigen::Vecto
 	for (int i = 0; i < num_threads; ++i)
 		workers.push_back(std::thread(worker_fn, i));
 	for (auto& t : workers)	t.join();
+}
+
+void compute_morton_code_openmp(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range ){
+
+	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
+    #pragma omp parallel num_threads(num_threads)
+    {
+        int thread_id = omp_get_thread_num();
+        int start = thread_id * elements_per_thread;
+        int end = (thread_id == num_threads - 1) ? input_size : (thread_id + 1) * elements_per_thread;
+
+        for (int t = start; t < end; ++t) {
+            Eigen::Vector3f input = inputs[t];
+            morton_keys[t] = PointToCode(input.x(), input.y(), input.z(), min_coord, range);
+        }
+    }
+}
+
+
+
+void PrefixSumThreaded(const std::vector<int>& edge_counts, std::vector<int>& oc_node_offsets, int n){
+    int *suma;
+    #pragma omp parallel
+    {
+        const int ithread = omp_get_thread_num();
+        const int nthreads = omp_get_num_threads();
+        #pragma omp single
+        {
+            suma = new int[nthreads+1];
+            suma[0] = 0;
+        }
+        int sum = 0;
+        #pragma omp for schedule(static)
+        for (int i=0; i<n; i++) {
+            sum += edge_counts[i];
+            oc_node_offsets[i+1] = sum;
+        }
+        suma[ithread+1] = sum;
+        #pragma omp barrier
+        int offset = 0;
+        for(int i=0; i<(ithread+1); i++) {
+            offset += suma[i];
+        }
+        #pragma omp for schedule(static)
+        for (int i=0; i<n; i++) {
+            oc_node_offsets[i+1] += offset;
+        }
+    }
+    delete[] suma;
+
 }
 
 int main(int argc, char** argv) {
@@ -170,10 +216,10 @@ int main(int argc, char** argv) {
   std::cout << "Range: " << range << "\n";
 
   // [Step 1] Compute Morton Codes
-  std::vector<Code_t> morton_keys;
-  morton_keys.reserve(input_size);
+  std::vector<Code_t> morton_keys(input_size,0xffffffff);
+  //morton_keys.reserve(input_size);
 
-  
+  /*
   TimeTask("Compute Morton Codes", [&] {
     std::transform(inputs.begin(), inputs.end(),
                    std::back_inserter(morton_keys), [&](const auto& vec) {
@@ -181,13 +227,18 @@ int main(int argc, char** argv) {
                                         range);
                    });
   });
+  */
   
-  //TimeTask("Compute Morton Codes", [&]{compute_morton_code_threaded(input_size, inputs, morton_keys, min_coord, range); });
+  TimeTask("Compute Morton Codes", [&]{compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range); });
 
   // [Step 2] Sort Morton Codes by Key
+  /*
   TimeTask("Sort Morton Codes",
            [&] { std::sort(morton_keys.begin(), morton_keys.end()); });
-
+  */
+ TimeTask("Sort Morton Codes",
+           [&] { omp_lsd_radix_sort(morton_keys.size(), morton_keys); });
+           
   // [Step 3-4] Handle Duplicates
   TimeTask("Handle Duplicates", [&] {
     morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
@@ -230,12 +281,19 @@ int main(int argc, char** argv) {
     edge_count[0] = 1;
     oct::CalculateEdgeCount(edge_count.data(), inners.data(), num_brt_nodes);
   });
-
+  
   // [Step 6.1] Prefix sum
+  
   std::vector<int> oc_node_offsets(num_brt_nodes + 1);
+  /*
   TimeTask("Prefix Sum", [&] {
     std::inclusive_scan(std::execution::par, edge_count.begin(), edge_count.end(),
                      oc_node_offsets.begin() + 1);
+    oc_node_offsets[0] = 0;
+  });
+  */
+  TimeTask("Prefix Sum", [&] {
+    PrefixSumThreaded(edge_count, oc_node_offsets, num_brt_nodes);
     oc_node_offsets[0] = 0;
   });
 

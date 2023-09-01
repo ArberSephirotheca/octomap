@@ -138,6 +138,31 @@ void MakeNodesThreaded(OctNode* nodes, const int* node_offsets, const int* edge_
 	for (auto& t : workers)	t.join();
 }
 
+void MakeNodesOpenMP(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int num_brt_nodes, int num_threads, float tree_range){
+    const int root_level = inners[0].delta_node / 3;
+    const Code_t root_prefix = morton_keys[0] >> (kCodeLen - (root_level * 3));
+
+    nodes[0].cornor = CodeToPoint(root_prefix << (kCodeLen - (root_level * 3)));
+    nodes[0].cell_size = tree_range;
+
+    const auto elements_per_thread = num_brt_nodes / num_threads;
+    // skipping root
+
+    #pragma omp parallel num_threads(num_threads)
+    {
+        int thread_id = omp_get_thread_num();
+        int start = thread_id * elements_per_thread;
+        int end = (thread_id == num_threads - 1) ? num_brt_nodes : (thread_id + 1) * elements_per_thread;
+
+        #pragma omp for
+        for (int t = start; t < end; ++t) {
+            MakeNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, root_level, t, tree_range);
+        }
+    }
+}
+
 void MakeNodesHelper(OctNode* nodes, const int* node_offsets, const int* edge_count,
                const Code_t* morton_keys, const brt::InnerNodes* inners,
                const int root_level, int i, float tree_range){
@@ -244,6 +269,25 @@ void LinkNodesThreaded(OctNode* nodes, const int* node_offsets, const int* edge_
 	for (int i = 0; i < num_threads; ++i)
 		workers.push_back(std::thread(worker_fn, i));
 	for (auto& t : workers)	t.join();
+}
+
+void LinkNodesOpenMP(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int num_brt_nodes, int num_threads){
+
+    const auto elements_per_thread = num_brt_nodes / num_threads;
+
+    #pragma omp parallel num_threads(num_threads)
+    {
+        int thread_id = omp_get_thread_num();
+        int start = thread_id * elements_per_thread;
+        int end = (thread_id == num_threads - 1) ? num_brt_nodes : (thread_id + 1) * elements_per_thread;
+
+        #pragma omp for
+        for (int t = start; t < end; ++t) {
+            LinkNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, t);
+        }
+    }
 }
 
 void LinkNodesHelper(OctNode* nodes, const int* node_offsets, const int* edge_count,

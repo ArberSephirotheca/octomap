@@ -83,6 +83,10 @@ void MakeNodesThreaded(OctNode* nodes, const int* node_offsets, const int* edge_
                const Code_t* morton_keys, const brt::InnerNodes* inners,
                int num_brt_nodes, int num_threads, float tree_range = 1.0f);
 
+void MakeNodesOpenMP(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int num_brt_nodes, int num_threads, float tree_range = 1.0f);
+
 void MakeNodesHelper(OctNode* nodes, const int* node_offsets, const int* edge_count,
                const Code_t* morton_keys, const brt::InnerNodes* inners,
                const int root_level, int i, float tree_range = 1.0f);
@@ -101,6 +105,10 @@ void LinkNodes(OctNode* nodes, const int* node_offsets, const int* edge_count,
                int num_brt_nodes);
 
 void LinkNodesThreaded(OctNode* nodes, const int* node_offsets, const int* edge_count,
+               const Code_t* morton_keys, const brt::InnerNodes* inners,
+               int num_brt_nodes, int num_threads);
+
+void LinkNodesOpenMP(OctNode* nodes, const int* node_offsets, const int* edge_count,
                const Code_t* morton_keys, const brt::InnerNodes* inners,
                int num_brt_nodes, int num_threads);
 

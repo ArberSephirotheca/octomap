@@ -23,3 +23,15 @@ target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic -Werror)
 find_package(Eigen3 REQUIRED)
 target_include_directories(my_app PUBLIC ${EIGEN3_INCLUDE_DIR})
 message(STATUS "Eigen3 version: ${Eigen3_VERSION}")
+
+find_package(OpenMP REQUIRED)
+
+# Add OpenMP flags to the compiler
+if(OpenMP_CXX_FOUND)
+    target_compile_options(my_app PRIVATE ${OpenMP_CXX_FLAGS})
+endif()
+
+# Link OpenMP library
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX)
+endif()
