@@ -44,7 +44,7 @@ void CalculateEdgeCountThreaded(int* edge_count, const brt::InnerNodes* inners,
                         const int num_brt_nodes, int num_threads){
 	const auto elements_per_thread = math::divide_ceil<int>(num_brt_nodes, num_threads);
 	const auto worker_fn = [edge_count, inners, num_brt_nodes, elements_per_thread](int i) {
-		for (int t = i * elements_per_thread; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread); ++t){
+		for (int t = (i * elements_per_thread)+1; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread+1); ++t){
         const int my_depth = inners[t].delta_node / 3;
         const int parent_depth = inners[inners[t].parent].delta_node / 3;
         edge_count[t] = my_depth - parent_depth;

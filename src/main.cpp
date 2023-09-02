@@ -9,7 +9,6 @@
 #include <numeric>
 #include <mutex>
 #include <random>
-#include <execution>
 #include <omp.h>
 
 #include "binary_radix_tree.hpp"
@@ -17,7 +16,7 @@
 #include "octree.hpp"
 #include "util.hpp"
 
-const int num_threads = std::thread::hardware_concurrency();
+//const int num_threads = std::thread::hardware_concurrency();
 std::mutex mtx; // Mutex for protecting shared data
 
 template <uint8_t Axis>
@@ -76,7 +75,7 @@ void parallelRadixSort(std::vector<Code_t>& arr, int numThreads) {
     }
 }
 
-void compute_morton_code_threaded(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range ){
+void compute_morton_code_threaded(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range, int num_threads){
 
 	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
   	const auto worker_fn = [&inputs, &morton_keys,input_size, min_coord, range, elements_per_thread](int i) {
@@ -94,7 +93,7 @@ void compute_morton_code_threaded(const int input_size, std::vector<Eigen::Vecto
 	for (auto& t : workers)	t.join();
 }
 
-void compute_morton_code_openmp(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range ){
+void compute_morton_code_openmp(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range, int num_threads ){
 
 	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
     #pragma omp parallel num_threads(num_threads)
@@ -112,8 +111,9 @@ void compute_morton_code_openmp(const int input_size, std::vector<Eigen::Vector3
 
 
 
-void PrefixSumThreaded(const std::vector<int>& edge_counts, std::vector<int>& oc_node_offsets, int n){
+void PrefixSumThreaded(const std::vector<int>& edge_counts, std::vector<int>& oc_node_offsets, int n, int num_threads){
     int *suma;
+    omp_set_num_threads(num_threads);
     #pragma omp parallel
     {
         const int ithread = omp_get_thread_num();
@@ -145,6 +145,15 @@ void PrefixSumThreaded(const std::vector<int>& edge_counts, std::vector<int>& oc
 }
 
 int main(int argc, char** argv) {
+  float compute_time;
+  float sort_time;
+  float duplicate_time;
+  float brt_time;
+  float edges_time;
+  float prefix_time;
+  float make_nodes_time;
+  float link_nodes_time;
+  float total_time;
   cxxopts::Options options(
       "Redwood Radix Tree",
       "Redwood accelerated Binary Radix Tree and Octree Implementation");
@@ -175,9 +184,10 @@ int main(int argc, char** argv) {
   }
 
   const auto data_file = result["file"].as<std::string>();
-  //const auto num_threads = result["thread"].as<int>();
   //const auto cpu = result["cpu"].as<bool>();
   const auto print = result["print"].as<bool>();
+  const auto num_threads = result["thread"].as<int>();
+  std::cout <<"num of threads: "<< num_threads<<std::endl;
 
   thread_local std::mt19937 gen(114514);  // NOLINT(cert-msc51-cpp)
   static std::uniform_real_distribution dis(0.0f, 1.0f);
@@ -218,7 +228,7 @@ int main(int argc, char** argv) {
   // [Step 1] Compute Morton Codes
   std::vector<Code_t> morton_keys(input_size,0xffffffff);
   //morton_keys.reserve(input_size);
-
+  
   /*
   TimeTask("Compute Morton Codes", [&] {
     std::transform(inputs.begin(), inputs.end(),
@@ -229,18 +239,20 @@ int main(int argc, char** argv) {
   });
   */
   
-  TimeTask("Compute Morton Codes", [&]{compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range); });
+
+  
+  compute_time = TimeTask("Compute Morton Codes", [&]{compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range, num_threads); });
 
   // [Step 2] Sort Morton Codes by Key
   /*
   TimeTask("Sort Morton Codes",
            [&] { std::sort(morton_keys.begin(), morton_keys.end()); });
   */
- TimeTask("Sort Morton Codes",
-           [&] { omp_lsd_radix_sort(morton_keys.size(), morton_keys); });
+ sort_time = TimeTask("Sort Morton Codes",
+           [&] { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
            
   // [Step 3-4] Handle Duplicates
-  TimeTask("Handle Duplicates", [&] {
+  duplicate_time = TimeTask("Handle Duplicates", [&] {
     morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
                       morton_keys.end());
   });
@@ -259,9 +271,16 @@ int main(int argc, char** argv) {
   const auto num_brt_nodes = morton_keys.size() - 1;
   std::vector<brt::InnerNodes> inners(num_brt_nodes);
 
+  /*
   TimeTask("Build Binary Radix Tree", [&] {
+    create_binary_radix_tree(morton_keys.size(), morton_keys.data(), inners.data());
+  });
+  */
+  
+  brt_time = TimeTask("Build Binary Radix Tree", [&] {
     create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), inners.data(), num_threads);
   });
+  
 
   if (print) {
     for (unsigned int i = 0; i < num_brt_nodes; ++i) {
@@ -273,29 +292,46 @@ int main(int argc, char** argv) {
       std::cout << "\n";
     }
   }
-
+  
   // [Step 6] Count edges
   std::vector<int> edge_count(num_brt_nodes);
+  
+  /*
   TimeTask("Count Edges", [&] {
     // Copy a "1" to the first element to account for the root
     edge_count[0] = 1;
     oct::CalculateEdgeCount(edge_count.data(), inners.data(), num_brt_nodes);
   });
+  */
+  
+
+  
+   edges_time =  TimeTask("Count Edges", [&] {
+    // Copy a "1" to the first element to account for the root
+    edge_count[0] = 1;
+    oct::CalculateEdgeCountThreaded(edge_count.data(), inners.data(), num_brt_nodes, num_threads);
+  });
+  
+  
+  
   
   // [Step 6.1] Prefix sum
   
   std::vector<int> oc_node_offsets(num_brt_nodes + 1);
   /*
   TimeTask("Prefix Sum", [&] {
-    std::inclusive_scan(std::execution::par, edge_count.begin(), edge_count.end(),
+    std::partial_sum(edge_count.begin(), edge_count.end(),
                      oc_node_offsets.begin() + 1);
     oc_node_offsets[0] = 0;
   });
   */
-  TimeTask("Prefix Sum", [&] {
-    PrefixSumThreaded(edge_count, oc_node_offsets, num_brt_nodes);
+  
+  prefix_time = TimeTask("Prefix Sum", [&] {
+    PrefixSumThreaded(edge_count, oc_node_offsets, num_brt_nodes, num_threads);
     oc_node_offsets[0] = 0;
   });
+  
+  
 
   // [Step 6.2] Allocate BH nodes
   const int num_oc_nodes = oc_node_offsets.back();
@@ -308,11 +344,24 @@ int main(int argc, char** argv) {
   std::cout << "Num Radix Nodes: " << num_brt_nodes << "\n";
   std::cout << "Num Octree Nodes: " << num_oc_nodes << "\n";
 
+
   // [Step 7] Create unlinked BH nodes
+  /*
   TimeTask("Make Unlinked BH nodes", [&] {
+    MakeNodes(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
+              morton_keys.data(), inners.data(), num_brt_nodes, range);
+  });
+  */
+  
+  
+  // [Step 7] Create unlinked BH nodes
+  make_nodes_time = TimeTask("Make Unlinked BH nodes", [&] {
     MakeNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
               morton_keys.data(), inners.data(), num_brt_nodes, num_threads, range);
   });
+  
+  
+  
 
   // [Step 8] Linking BH nodes
   /*
@@ -322,10 +371,14 @@ int main(int argc, char** argv) {
   });
   */
   
-   TimeTask("Link BH nodes", [&] {
+  
+  
+   link_nodes_time = TimeTask("Link BH nodes", [&] {
     LinkNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
               morton_keys.data(), inners.data(), num_brt_nodes, num_threads);
   });
+  
+  
 
   CheckTree(root_prefix, root_level * 3, bh_nodes.data(), 0,
             morton_keys.data());
@@ -349,6 +402,25 @@ int main(int argc, char** argv) {
       std::cout << "\n";
     }
   }
+  
+  total_time = compute_time +
+   sort_time + 
+   duplicate_time + 
+   brt_time + 
+   edges_time + 
+   prefix_time + 
+   make_nodes_time + 
+   link_nodes_time;
+  
+  std::cout<<"total time: "<<total_time<<std::endl;
+  std::cout<<"Compute Morton Codes Time: "<< compute_time<<" ("<<compute_time/total_time*100<<"%)"<<std::endl;
+  std::cout<<"Sort Morton Codes Time: "<< sort_time<<" ("<<sort_time/total_time*100<<"%)"<<std::endl;
+  std::cout<<"Handle Duplicates Time: "<< duplicate_time<<" ("<<duplicate_time/total_time*100<<"%)"<<std::endl;
+  std::cout<<"Build Binary Radix Tree Time: "<< brt_time<<" ("<<brt_time/total_time*100<<"%)"<<std::endl;
+  std::cout<<"Count Edges Time: "<< edges_time<<" ("<<edges_time/total_time*100<<"%)"<<std::endl;
+  std::cout<<"Prefix Sum Time: "<< prefix_time<<" ("<<prefix_time/total_time*100<<"%)"<<std::endl;
+  std::cout<<"Make Unlinked BH nodes Time: "<< make_nodes_time<<" ("<<make_nodes_time/total_time*100<<"%)"<<std::endl;
+  std::cout<<"Link BH nodes Time: "<< link_nodes_time<<" ("<<link_nodes_time/total_time*100<<"%)"<<std::endl;
 
 
   return EXIT_SUCCESS;

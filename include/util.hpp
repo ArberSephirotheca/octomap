@@ -22,7 +22,7 @@
 #endif  // _HAS_NODISCARD
 
 template <typename Func>
-void TimeTask(const std::string& task_name, Func&& f) {
+float TimeTask(const std::string& task_name, Func&& f) {
   const auto t0 = std::chrono::high_resolution_clock::now();
 
   std::forward<Func>(f)();
@@ -33,6 +33,7 @@ void TimeTask(const std::string& task_name, Func&& f) {
 
   std::cout << "Finished " << task_name << "! Time took: " << time_span.count()
             << "s. " << std::endl;
+  return time_span.count();
 }
 
 #define BASE_BITS 8
@@ -40,7 +41,7 @@ void TimeTask(const std::string& task_name, Func&& f) {
 #define MASK (BASE-1)
 #define DIGITS(v, shift) (((v) >> shift) & MASK)
  
-void omp_lsd_radix_sort(size_t n, std::vector<uint64_t>& data) {
+void omp_lsd_radix_sort(size_t n, std::vector<uint64_t>& data, const int num_threads) {
     std::vector<uint64_t> buffer(n);
     int total_digits = sizeof(uint64_t)*8;
  
@@ -50,6 +51,7 @@ void omp_lsd_radix_sort(size_t n, std::vector<uint64_t>& data) {
         size_t bucket[BASE] = {0};
  
         size_t local_bucket[BASE] = {0}; // size needed in each bucket/thread
+         omp_set_num_threads(num_threads);
         //1st pass, scan whole and check the count
         #pragma omp parallel firstprivate(local_bucket)
         {
