@@ -186,7 +186,9 @@ int main(int argc, char** argv) {
   const auto data_file = result["file"].as<std::string>();
   //const auto cpu = result["cpu"].as<bool>();
   const auto print = result["print"].as<bool>();
-  const auto num_threads = result["thread"].as<int>();
+  const auto input_threads = result["thread"].as<int>();
+  const int max_threads = std::thread::hardware_concurrency();
+  const auto num_threads = std::min(input_threads, max_threads);
   std::cout <<"num of threads: "<< num_threads<<std::endl;
 
   thread_local std::mt19937 gen(114514);  // NOLINT(cert-msc51-cpp)
