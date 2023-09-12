@@ -92,3 +92,128 @@ void omp_lsd_radix_sort(size_t n, std::vector<uint64_t>& data, const int num_thr
         buffer = tmp;
     }
 }
+
+
+template <uint8_t Axis>
+bool CompareAxis(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
+  if constexpr (Axis == 0) {
+    return a.x() < b.x();
+  } else if constexpr (Axis == 1) {
+    return a.y() < b.y();
+  } else {
+    return a.z() < b.z();
+  }
+}
+// Function to perform counting sort on a specific digit's place (0 or 1)
+void countingSort(std::vector<Code_t>& arr, int exp, int threadId, int numThreads) {
+    const size_t n = arr.size();
+    std::vector<Code_t> output(n);
+    std::vector<Code_t> count(2, 0);
+
+    for (size_t i = threadId; i < n; i += numThreads) {
+        count[(arr[i] >> exp) & 1]++;
+    }
+
+    // Synchronize threads before updating the count array
+    std::mutex mtx;
+    std::unique_lock<std::mutex> lock(mtx);
+    for (int i = 0; i < numThreads; i++) {
+        count[0] += count[2 * i];
+        count[1] += count[2 * i + 1];
+    }
+    lock.unlock();
+
+    for (size_t i = threadId; i < n; i += numThreads) {
+        output[count[(arr[i] >> exp) & 1]++] = arr[i];
+    }
+
+    for (size_t i = threadId; i < n; i += numThreads) {
+        arr[i] = output[i];
+    }
+}
+
+// Function to perform parallel radix sort using multiple threads
+void parallelRadixSort(std::vector<Code_t>& arr, int numThreads) {
+    //const size_t n = arr.size();
+    const int numBits = 64; // Assuming 64-bit Morton codes
+
+    for (int exp = 0; exp < numBits; exp++) {
+        std::vector<std::thread> threads(numThreads);
+
+        for (int i = 0; i < numThreads; i++) {
+            threads[i] = std::thread(countingSort, std::ref(arr), exp, i, numThreads);
+        }
+
+        for (int i = 0; i < numThreads; i++) {
+            threads[i].join();
+        }
+    }
+}
+
+void compute_morton_code_threaded(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range, int num_threads){
+
+	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
+  	const auto worker_fn = [&inputs, &morton_keys,input_size, min_coord, range, elements_per_thread](int i) {
+      for(int t = i * elements_per_thread; t < math::min(input_size, (i + 1)*elements_per_thread); ++t){
+        Eigen::Vector3f input = inputs[t];
+        morton_keys[t] = PointToCode(input.x(), input.y(), input.z(), min_coord, range);
+      }
+	};
+
+
+	// Create the threads
+	std::vector<std::thread> workers;
+	for (int i = 0; i < num_threads; ++i)
+		workers.push_back(std::thread(worker_fn, i));
+	for (auto& t : workers)	t.join();
+}
+
+void compute_morton_code_openmp(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range, int num_threads ){
+
+	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
+    #pragma omp parallel num_threads(num_threads)
+    {
+        int thread_id = omp_get_thread_num();
+        int start = thread_id * elements_per_thread;
+        int end = (thread_id == num_threads - 1) ? input_size : (thread_id + 1) * elements_per_thread;
+
+        for (int t = start; t < end; ++t) {
+            Eigen::Vector3f input = inputs[t];
+            morton_keys[t] = PointToCode(input.x(), input.y(), input.z(), min_coord, range);
+        }
+    }
+}
+
+
+
+void PrefixSumThreaded(const std::vector<int>& edge_counts, std::vector<int>& oc_node_offsets, int n, int num_threads){
+    int *suma;
+    omp_set_num_threads(num_threads);
+    #pragma omp parallel
+    {
+        const int ithread = omp_get_thread_num();
+        const int nthreads = omp_get_num_threads();
+        #pragma omp single
+        {
+            suma = new int[nthreads+1];
+            suma[0] = 0;
+        }
+        int sum = 0;
+        #pragma omp for schedule(static)
+        for (int i=0; i<n; i++) {
+            sum += edge_counts[i];
+            oc_node_offsets[i+1] = sum;
+        }
+        suma[ithread+1] = sum;
+        #pragma omp barrier
+        int offset = 0;
+        for(int i=0; i<(ithread+1); i++) {
+            offset += suma[i];
+        }
+        #pragma omp for schedule(static)
+        for (int i=0; i<n; i++) {
+            oc_node_offsets[i+1] += offset;
+        }
+    }
+    delete[] suma;
+}

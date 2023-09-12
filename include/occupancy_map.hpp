@@ -3,6 +3,7 @@
 
 #include "octree.hpp"
 namespace map{
+    template<typename DATA_TYPE>
     class OccupancyMap : public oct::Octree{
         public:
             // constructor

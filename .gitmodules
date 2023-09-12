@@ -4,3 +4,6 @@
 [submodule "extern/cxxopts"]
 	path = extern/cxxopts
 	url = https://github.com/jarro2783/cxxopts.git
+[submodule "extern/librealsense"]
+	path = extern/librealsense
+	url = git@github.com:IntelRealSense/librealsense.git

@@ -10,6 +10,7 @@
 #include <mutex>
 #include <random>
 #include <omp.h>
+#include <librealsense2/rs.hpp>
 
 #include "binary_radix_tree.hpp"
 #include "morton_util.hpp"
@@ -18,131 +19,6 @@
 
 //const int num_threads = std::thread::hardware_concurrency();
 std::mutex mtx; // Mutex for protecting shared data
-
-template <uint8_t Axis>
-bool CompareAxis(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
-  if constexpr (Axis == 0) {
-    return a.x() < b.x();
-  } else if constexpr (Axis == 1) {
-    return a.y() < b.y();
-  } else {
-    return a.z() < b.z();
-  }
-}
-// Function to perform counting sort on a specific digit's place (0 or 1)
-void countingSort(std::vector<Code_t>& arr, int exp, int threadId, int numThreads) {
-    const size_t n = arr.size();
-    std::vector<Code_t> output(n);
-    std::vector<Code_t> count(2, 0);
-
-    for (size_t i = threadId; i < n; i += numThreads) {
-        count[(arr[i] >> exp) & 1]++;
-    }
-
-    // Synchronize threads before updating the count array
-    std::mutex mtx;
-    std::unique_lock<std::mutex> lock(mtx);
-    for (int i = 0; i < numThreads; i++) {
-        count[0] += count[2 * i];
-        count[1] += count[2 * i + 1];
-    }
-    lock.unlock();
-
-    for (size_t i = threadId; i < n; i += numThreads) {
-        output[count[(arr[i] >> exp) & 1]++] = arr[i];
-    }
-
-    for (size_t i = threadId; i < n; i += numThreads) {
-        arr[i] = output[i];
-    }
-}
-
-// Function to perform parallel radix sort using multiple threads
-void parallelRadixSort(std::vector<Code_t>& arr, int numThreads) {
-    //const size_t n = arr.size();
-    const int numBits = 64; // Assuming 64-bit Morton codes
-
-    for (int exp = 0; exp < numBits; exp++) {
-        std::vector<std::thread> threads(numThreads);
-
-        for (int i = 0; i < numThreads; i++) {
-            threads[i] = std::thread(countingSort, std::ref(arr), exp, i, numThreads);
-        }
-
-        for (int i = 0; i < numThreads; i++) {
-            threads[i].join();
-        }
-    }
-}
-
-void compute_morton_code_threaded(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range, int num_threads){
-
-	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
-  	const auto worker_fn = [&inputs, &morton_keys,input_size, min_coord, range, elements_per_thread](int i) {
-      for(int t = i * elements_per_thread; t < math::min(input_size, (i + 1)*elements_per_thread); ++t){
-        Eigen::Vector3f input = inputs[t];
-        morton_keys[t] = PointToCode(input.x(), input.y(), input.z(), min_coord, range);
-      }
-	};
-
-
-	// Create the threads
-	std::vector<std::thread> workers;
-	for (int i = 0; i < num_threads; ++i)
-		workers.push_back(std::thread(worker_fn, i));
-	for (auto& t : workers)	t.join();
-}
-
-void compute_morton_code_openmp(const int input_size, std::vector<Eigen::Vector3f>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range, int num_threads ){
-
-	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
-    #pragma omp parallel num_threads(num_threads)
-    {
-        int thread_id = omp_get_thread_num();
-        int start = thread_id * elements_per_thread;
-        int end = (thread_id == num_threads - 1) ? input_size : (thread_id + 1) * elements_per_thread;
-
-        for (int t = start; t < end; ++t) {
-            Eigen::Vector3f input = inputs[t];
-            morton_keys[t] = PointToCode(input.x(), input.y(), input.z(), min_coord, range);
-        }
-    }
-}
-
-
-
-void PrefixSumThreaded(const std::vector<int>& edge_counts, std::vector<int>& oc_node_offsets, int n, int num_threads){
-    int *suma;
-    omp_set_num_threads(num_threads);
-    #pragma omp parallel
-    {
-        const int ithread = omp_get_thread_num();
-        const int nthreads = omp_get_num_threads();
-        #pragma omp single
-        {
-            suma = new int[nthreads+1];
-            suma[0] = 0;
-        }
-        int sum = 0;
-        #pragma omp for schedule(static)
-        for (int i=0; i<n; i++) {
-            sum += edge_counts[i];
-            oc_node_offsets[i+1] = sum;
-        }
-        suma[ithread+1] = sum;
-        #pragma omp barrier
-        int offset = 0;
-        for(int i=0; i<(ithread+1); i++) {
-            offset += suma[i];
-        }
-        #pragma omp for schedule(static)
-        for (int i=0; i<n; i++) {
-            oc_node_offsets[i+1] += offset;
-        }
-    }
-    delete[] suma;
-
-}
 
 int main(int argc, char** argv) {
   float compute_time;
@@ -205,6 +81,18 @@ int main(int argc, char** argv) {
     return Eigen::Vector3f(x, y, z);
   });
 
+      // Declare pointcloud object, for calculating pointclouds and texture mappings
+    rs2::pointcloud pc;
+    // We want the points object to be persistent so we can display the last cloud when a frame drops
+    rs2::points points;
+
+    // Declare RealSense pipeline, encapsulating the actual device and sensors
+    rs2::pipeline pipe;
+    // Start streaming with default recommended configuration
+    pipe.start();
+
+
+
   float min_coord = 0.0f;
   float max_coord = 1.0f;
 
@@ -230,26 +118,12 @@ int main(int argc, char** argv) {
   // [Step 1] Compute Morton Codes
   std::vector<Code_t> morton_keys(input_size,0xffffffff);
   //morton_keys.reserve(input_size);
-  
-  /*
-  TimeTask("Compute Morton Codes", [&] {
-    std::transform(inputs.begin(), inputs.end(),
-                   std::back_inserter(morton_keys), [&](const auto& vec) {
-                     return PointToCode(vec.x(), vec.y(), vec.z(), min_coord,
-                                        range);
-                   });
-  });
-  */
-  
+
 
   
   compute_time = TimeTask("Compute Morton Codes", [&]{compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range, num_threads); });
 
   // [Step 2] Sort Morton Codes by Key
-  /*
-  TimeTask("Sort Morton Codes",
-           [&] { std::sort(morton_keys.begin(), morton_keys.end()); });
-  */
  sort_time = TimeTask("Sort Morton Codes",
            [&] { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
            
@@ -272,12 +146,6 @@ int main(int argc, char** argv) {
   // [Step 5] Build Binary Radix Tree
   const auto num_brt_nodes = morton_keys.size() - 1;
   std::vector<brt::InnerNodes> inners(num_brt_nodes);
-
-  /*
-  TimeTask("Build Binary Radix Tree", [&] {
-    create_binary_radix_tree(morton_keys.size(), morton_keys.data(), inners.data());
-  });
-  */
   
   brt_time = TimeTask("Build Binary Radix Tree", [&] {
     create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), inners.data(), num_threads);
@@ -297,17 +165,7 @@ int main(int argc, char** argv) {
   
   // [Step 6] Count edges
   std::vector<int> edge_count(num_brt_nodes);
-  
-  /*
-  TimeTask("Count Edges", [&] {
-    // Copy a "1" to the first element to account for the root
-    edge_count[0] = 1;
-    oct::CalculateEdgeCount(edge_count.data(), inners.data(), num_brt_nodes);
-  });
-  */
-  
 
-  
    edges_time =  TimeTask("Count Edges", [&] {
     // Copy a "1" to the first element to account for the root
     edge_count[0] = 1;
@@ -320,13 +178,6 @@ int main(int argc, char** argv) {
   // [Step 6.1] Prefix sum
   
   std::vector<int> oc_node_offsets(num_brt_nodes + 1);
-  /*
-  TimeTask("Prefix Sum", [&] {
-    std::partial_sum(edge_count.begin(), edge_count.end(),
-                     oc_node_offsets.begin() + 1);
-    oc_node_offsets[0] = 0;
-  });
-  */
   
   prefix_time = TimeTask("Prefix Sum", [&] {
     PrefixSumThreaded(edge_count, oc_node_offsets, num_brt_nodes, num_threads);
@@ -346,16 +197,6 @@ int main(int argc, char** argv) {
   std::cout << "Num Radix Nodes: " << num_brt_nodes << "\n";
   std::cout << "Num Octree Nodes: " << num_oc_nodes << "\n";
 
-
-  // [Step 7] Create unlinked BH nodes
-  /*
-  TimeTask("Make Unlinked BH nodes", [&] {
-    MakeNodes(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
-              morton_keys.data(), inners.data(), num_brt_nodes, range);
-  });
-  */
-  
-  
   // [Step 7] Create unlinked BH nodes
   make_nodes_time = TimeTask("Make Unlinked BH nodes", [&] {
     MakeNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
@@ -366,15 +207,6 @@ int main(int argc, char** argv) {
   
 
   // [Step 8] Linking BH nodes
-  /*
-  TimeTask("Link BH nodes", [&] {
-    LinkNodes(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
-              morton_keys.data(), inners.data(), num_brt_nodes);
-  });
-  */
-  
-  
-  
    link_nodes_time = TimeTask("Link BH nodes", [&] {
     LinkNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
               morton_keys.data(), inners.data(), num_brt_nodes, num_threads);

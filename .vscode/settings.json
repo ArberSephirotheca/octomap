@@ -81,6 +81,7 @@
         "set": "cpp",
         "fstream": "cpp",
         "cinttypes": "cpp",
-        "condition_variable": "cpp"
+        "condition_variable": "cpp",
+        "ranges": "cpp"
     }
 }
