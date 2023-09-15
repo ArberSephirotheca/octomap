@@ -17,9 +17,14 @@ target_include_directories(
   PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
 target_compile_features(my_app PUBLIC cxx_std_17)
-target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic)
+target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic -ltbb)
 
+# Add realsense2
 find_package(realsense2 REQUIRED)
+
+
+# Add TBB
+find_package(TBB REQUIRED)
 
 # Add Eigen
 find_package(Eigen3 REQUIRED)
@@ -40,5 +45,5 @@ endif()
 
 # Link OpenMP library
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES})
+    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS})
 endif()

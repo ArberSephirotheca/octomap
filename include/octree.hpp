@@ -56,7 +56,7 @@ class Octree{
   Octree(Code_t root_prefix, int code_len, OctNode<DATA_TYPE>* nodes, int level, Code_t* codes): 
         root_prefix_(root_prefix), code_len_(code_len), nodes_(nodes), level_(level), codes_(codes) {}
   ~Octree();
-  OctNode<DATA_TYPE>* search(const Code_t prefix, const int code_len, const int oct_idx);
+  OctNode<DATA_TYPE>* search(const Code_t code, const Code_t prefix, const int code_len, const int oct_idx);
 
   private:
     Code_t root_prefix_;
@@ -82,17 +82,19 @@ void OctNode<DATA_TYPE>::SetLeaf(const int leaf, const int my_child_idx) {
 }
 
 template<typename DATA_TYPE>
-  OctNode<DATA_TYPE>* Octree<DATA_TYPE>::search(const Code_t prefix, const int code_len, const int oct_idx) {
+  OctNode<DATA_TYPE>* Octree<DATA_TYPE>::search(const Code_t code, const Code_t prefix, const int code_len, const int oct_idx) {
   const OctNode<DATA_TYPE>& node = nodes_[oct_idx];
   for (int i = 0; i < 8; ++i) {
     Code_t new_pref = (prefix << 3) | i;
-    if (node.child_node_mask & (1 << i)) {
-      search(new_pref, code_len + 3, node.children[i]);
-    }
-    if (node.child_leaf_mask & (1 << i)) {
+    // excatly the same code
+    if(!(new_pref ^ code)){
       return node.children[i];
     }
+    if(new_pref & code == new_pref){
+      search(new_pref, code_len + 3, node.children[i]);
+    }
   }
+  return nullptr;
 }
 
  bool IsLeaf(const int internal_value) {

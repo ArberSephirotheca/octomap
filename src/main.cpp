@@ -10,12 +10,14 @@
 #include <mutex>
 #include <random>
 #include <omp.h>
+#include <execution>
 #include <librealsense2/rs.hpp>
 #include <librealsense2/h/rs_types.h>
 #include "binary_radix_tree.hpp"
 #include "morton_util.hpp"
 #include "octree.hpp"
 #include "util.hpp"
+//#include "occupancy_map.hpp"
 
 // const int num_threads = std::thread::hardware_concurrency();
 std::mutex mtx; // Mutex for protecting shared data
@@ -32,7 +34,7 @@ void test()
   float link_nodes_time;
   float total_time;
   
-  int num_threads = 10;
+  int num_threads = 6;
   // Declare pointcloud object, for calculating pointclouds and texture mappings
   rs2::pointcloud pc;
   // We want the points object to be persistent so we can display the last cloud when a frame drops
@@ -54,7 +56,10 @@ void test()
     auto cloud = points_to_pcl(points);
     auto inputs = cloud->points;
     int input_size = inputs.size();
-
+    std::cout<<"input size: "<<input_size<<std::endl;
+    for(int i = 0; i < 50; ++i){
+      std::cout << inputs[i]<<std::endl;
+    }
     float min_coord = 0.0f;
     float max_coord = 1.0f;
     TimeTask("Find Min Max", [&]
@@ -82,11 +87,15 @@ void test()
   compute_time = TimeTask("Compute Morton Codes", [&]
                           { compute_morton_code_openmp_pcl(input_size, inputs, morton_keys, min_coord, range, num_threads); });
 
+
   // [Step 2] Sort Morton Codes by Key
   sort_time = TimeTask("Sort Morton Codes",
                        [&]
-                       { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
+                       { std::sort(std::execution::par, morton_keys.begin(), morton_keys.end()); });
 
+sort_time = TimeTask("Sort Morton Codes radix sort",
+                       [&]
+                       { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
   // [Step 3-4] Handle Duplicates
   duplicate_time = TimeTask("Handle Duplicates", [&]
                             { morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
@@ -244,9 +253,14 @@ int main(int argc, char **argv)
                           { compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range, num_threads); });
 
   // [Step 2] Sort Morton Codes by Key
-  sort_time = TimeTask("Sort Morton Codes",
+  sort_time = TimeTask("Sort Morton Codes radix sort",
                        [&]
                        { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
+                       /*
+  sort_time = TimeTask("Sort Morton Codes",
+                       [&]
+                       { std::sort(std::execution::par, morton_keys.begin(), morton_keys.end()); });
+                       */
 
   // [Step 3-4] Handle Duplicates
   duplicate_time = TimeTask("Handle Duplicates", [&]

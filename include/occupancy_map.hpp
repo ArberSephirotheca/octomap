@@ -4,9 +4,10 @@
 #include "octree.hpp"
 #include "morton_util.hpp"
 #include <librealsense2/rs.hpp>
-#include <librealsense2/types.h>
-using Code_t = uint64_t;
+#include <pcl/point_types.h>
+#include <pcl/filters/passthrough.h>
 
+using Code_t = uint64_t;
 namespace map
 {
     template <typename DATA_TYPE>
@@ -18,19 +19,16 @@ namespace map
         // destructor
         virtual ~OccupancyMap() {}
 
-        void insertPointCloud(const rs2::vertex &sensor_origin, rs2::points cloud, float max_range = -1,
+        void insertPointCloud(const pcl::PointXYZ& sensor_origin, std::vector<pcl::PointXYZ, Eigen::aligned_allocator<pcl::PointXYZ>>& cloud, float max_range = -1,
                               int depth = 8)
         {
             std::vector<std::pair<Code_t, float>> occupied_hits;
             occupied_hits.reserve(cloud.size());
             rs2::points discretized;
-            const rs2::vertex *points = cloud.get_vertices();
-            int num_points = sizeof(points) / sizeof(points[0]);
-            for (int i = 0; i < num_points; ++i)
+            for (auto &end :cloud)
             {
-                rs::vertex end = points[i];
-                rs2::vertex origin = sensor_origin;
-                rs2::vertex direction = end - origin;
+                pcl::PointXYZ origin = sensor_origin;
+                pcl::PointXYZ direction = end - origin;
                 float distance = direction.norm();
 
                 if (moveLineInside(origin, end))
@@ -41,7 +39,7 @@ namespace map
                 if (0 > max_range || distance <= max_range)
                 {
                     // Occupied space
-                    Code_t end_code = PointToCode(end);
+                    Code_t end_code = PointToCode(end.x, end.y, end.z);
                     // TODO: indices to speedup
                     occupied_hits.push_back(std::make_pair(end_code, prob_hit_log_));
                 }
@@ -68,10 +66,10 @@ namespace map
                                     depth, min_change, max_change);
         }
         
-        void insertPointCloudHelper(rs2::vertex snesor_origin, rs2::points&& discretized,
+        void insertPointCloudHelper(pcl::PointXYZ snesor_origin, pcl_ptr&& discretized,
                                     std::vector<std::pair<Code_t, float>>&& occupied_hits,
                                     float prob_miss_log, int depth,
-                                    rs2::vertex min_change, rs2::vertex max_change)
+                                    pcl::PointXYZ min_change, pcl::PointXYZ max_change)
         {
             std::future<void> f = std::async(std::launch::async, [this, &occupied_hits](){
                 std::for_each((occupied_hits.begin()), occupied_hits.end(),
@@ -87,11 +85,11 @@ namespace map
             }
         }
 
-        void freeSpace(rs2::vertex snesor_origin, rs2::points&& discretized, float prob_miss_log, int depth, CodeMap& free_hits){
+        void freeSpace(pcl::PointXYZ snesor_origin, std::vector<pcl::PointXYZ, Eigen::aligned_allocator<pcl::PointXYZ>>&& discretized, float prob_miss_log, int depth, CodeMap& free_hits){
 
         }
 
-        void updateValue(Code_t code, float ){
+        void updateValue(Code_t code, float value){
 
         }
 
@@ -99,9 +97,10 @@ namespace map
     protected:
         float occupied_thres_;
         float free_thres_;
-        float prob;
+        float prob_hit_log_;
+        float prob_miss_log_;
         // std::vector<Code_t> indices_;
-    }
+    };
 }
 
 #endif // OCCUPANCY_MAP_H
