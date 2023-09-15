@@ -82,6 +82,12 @@
         "fstream": "cpp",
         "cinttypes": "cpp",
         "condition_variable": "cpp",
-        "ranges": "cpp"
+        "ranges": "cpp",
+        "strstream": "cpp",
+        "list": "cpp",
+        "shared_mutex": "cpp",
+        "cfenv": "cpp",
+        "typeindex": "cpp",
+        "core": "cpp"
     }
 }

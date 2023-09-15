@@ -11,16 +11,148 @@
 #include <random>
 #include <omp.h>
 #include <librealsense2/rs.hpp>
-
+#include <librealsense2/h/rs_types.h>
 #include "binary_radix_tree.hpp"
 #include "morton_util.hpp"
 #include "octree.hpp"
 #include "util.hpp"
 
-//const int num_threads = std::thread::hardware_concurrency();
+// const int num_threads = std::thread::hardware_concurrency();
 std::mutex mtx; // Mutex for protecting shared data
 
-int main(int argc, char** argv) {
+void test()
+{
+  float compute_time;
+  float sort_time;
+  float duplicate_time;
+  float brt_time;
+  float edges_time;
+  float prefix_time;
+  float make_nodes_time;
+  float link_nodes_time;
+  float total_time;
+  
+  int num_threads = 10;
+  // Declare pointcloud object, for calculating pointclouds and texture mappings
+  rs2::pointcloud pc;
+  // We want the points object to be persistent so we can display the last cloud when a frame drops
+  rs2::points points;
+
+  // Declare RealSense pipeline, encapsulating the actual device and sensors
+  rs2::pipeline pipe;
+  // Start streaming with default recommended configuration
+  pipe.start();
+
+  while (true)
+  {
+    // Wait for the next set of frames from the camera
+    auto frames = pipe.wait_for_frames();
+
+    auto depth = frames.get_depth_frame();
+
+    points = pc.calculate(depth);
+    auto cloud = points_to_pcl(points);
+    auto inputs = cloud->points;
+    int input_size = inputs.size();
+
+    float min_coord = 0.0f;
+    float max_coord = 1.0f;
+    TimeTask("Find Min Max", [&]
+             {
+    const auto [x_min, x_max] =
+        std::minmax_element(inputs.begin(), inputs.end(), CompareAxis_pcl<0>);
+    const auto [y_min, y_max] =
+        std::minmax_element(inputs.begin(), inputs.end(), CompareAxis_pcl<1>);
+    const auto [z_min, z_max] =
+        std::minmax_element(inputs.begin(), inputs.end(), CompareAxis_pcl<2>);
+    std::array<float, 3> mins{x_min->x, y_min->y, z_min->z};
+    std::array<float, 3> maxes{x_max->x, y_max->y, z_max->z};
+    min_coord = *std::min_element(mins.begin(), mins.end());
+    max_coord = *std::max_element(maxes.begin(), maxes.end()); });
+
+    const float range = max_coord - min_coord;
+
+    std::cout << "Min: " << min_coord << "\n";
+    std::cout << "Max: " << max_coord << "\n";
+    std::cout << "Range: " << range << "\n";
+ // [Step 1] Compute Morton Codes
+  std::vector<Code_t> morton_keys(input_size, 0xffffffff);
+  // morton_keys.reserve(input_size);
+
+  compute_time = TimeTask("Compute Morton Codes", [&]
+                          { compute_morton_code_openmp_pcl(input_size, inputs, morton_keys, min_coord, range, num_threads); });
+
+  // [Step 2] Sort Morton Codes by Key
+  sort_time = TimeTask("Sort Morton Codes",
+                       [&]
+                       { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
+
+  // [Step 3-4] Handle Duplicates
+  duplicate_time = TimeTask("Handle Duplicates", [&]
+                            { morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
+                                                morton_keys.end()); });
+
+
+  // [Step 5] Build Binary Radix Tree
+  const auto num_brt_nodes = morton_keys.size() - 1;
+  std::vector<brt::InnerNodes> inners(num_brt_nodes);
+
+  brt_time = TimeTask("Build Binary Radix Tree", [&]
+                      { create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), inners.data(), num_threads); });
+
+
+  // [Step 6] Count edges
+  std::vector<int> edge_count(num_brt_nodes);
+
+  edges_time = TimeTask("Count Edges", [&]
+                        {
+    // Copy a "1" to the first element to account for the root
+    edge_count[0] = 1;
+    oct::CalculateEdgeCountThreaded(edge_count.data(), inners.data(), num_brt_nodes, num_threads); });
+
+  // [Step 6.1] Prefix sum
+
+  std::vector<int> oc_node_offsets(num_brt_nodes + 1);
+
+  prefix_time = TimeTask("Prefix Sum", [&]
+                         {
+    PrefixSumThreaded(edge_count, oc_node_offsets, num_brt_nodes, num_threads);
+    oc_node_offsets[0] = 0; });
+
+  // [Step 6.2] Allocate BH nodes
+  const int num_oc_nodes = oc_node_offsets.back();
+  const int root_level = inners[0].delta_node / 3;
+  const Code_t root_prefix = morton_keys[0] >> (kCodeLen - (3 * root_level));
+  std::vector<oct::OctNode<float>> bh_nodes(num_oc_nodes);
+
+  // Debug print
+  std::cout << "Num Morton Keys: " << morton_keys.size() << "\n";
+  std::cout << "Num Radix Nodes: " << num_brt_nodes << "\n";
+  std::cout << "Num Octree Nodes: " << num_oc_nodes << "\n";
+
+  // [Step 7] Create unlinked BH nodes
+  make_nodes_time = TimeTask("Make Unlinked BH nodes", [&]
+                             { oct::MakeNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
+                                                             morton_keys.data(), inners.data(), num_brt_nodes, num_threads, range); });
+
+  // [Step 8] Linking BH nodes
+  link_nodes_time = TimeTask("Link BH nodes", [&]
+                             { oct::LinkNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
+                                                             morton_keys.data(), inners.data(), num_brt_nodes, num_threads); });
+    /*
+    for(int i = 0; i < 50; ++i){
+      std::cout<<"x: "<<vertices->x<<" y: "<<vertices->y<<" z: "<<vertices->z<<std::endl;
+
+      vertices++;
+    }
+    */
+    std::cout << frames.get_data_size() << std::endl;
+  }
+}
+
+int main(int argc, char **argv)
+{
+  test();
   float compute_time;
   float sort_time;
   float duplicate_time;
@@ -47,12 +179,14 @@ int main(int argc, char** argv) {
 
   const auto result = options.parse(argc, argv);
 
-  if (result.count("help")) {
+  if (result.count("help"))
+  {
     std::cout << options.help() << std::endl;
     return EXIT_SUCCESS;
   }
 
-  if (!result.count("file")) {
+  if (!result.count("file"))
+  {
     std::cerr
         << "requires an input file (\"../../data/1m_nn_uniform_4f.dat\")\n";
     std::cout << options.help() << std::endl;
@@ -60,43 +194,31 @@ int main(int argc, char** argv) {
   }
 
   const auto data_file = result["file"].as<std::string>();
-  //const auto cpu = result["cpu"].as<bool>();
+  // const auto cpu = result["cpu"].as<bool>();
   const auto print = result["print"].as<bool>();
   const auto input_threads = result["thread"].as<int>();
   const int max_threads = std::thread::hardware_concurrency();
   const auto num_threads = std::min(input_threads, max_threads);
-  std::cout <<"num of threads: "<< num_threads<<std::endl;
+  std::cout << "num of threads: " << num_threads << std::endl;
 
-  thread_local std::mt19937 gen(114514);  // NOLINT(cert-msc51-cpp)
+  thread_local std::mt19937 gen(114514); // NOLINT(cert-msc51-cpp)
   static std::uniform_real_distribution dis(0.0f, 1.0f);
 
   // Prepare Inputs
   // constexpr int input_size = 1024;
   constexpr int input_size = 1280 * 720;
   std::vector<Eigen::Vector3f> inputs(input_size);
-  std::generate(inputs.begin(), inputs.end(), [&] {
+  std::generate(inputs.begin(), inputs.end(), [&]
+                {
     const auto x = dis(gen) * 1024.0f;
     const auto y = dis(gen) * 1024.0f;
     const auto z = dis(gen) * 1024.0f;
-    return Eigen::Vector3f(x, y, z);
-  });
-
-      // Declare pointcloud object, for calculating pointclouds and texture mappings
-    rs2::pointcloud pc;
-    // We want the points object to be persistent so we can display the last cloud when a frame drops
-    rs2::points points;
-
-    // Declare RealSense pipeline, encapsulating the actual device and sensors
-    rs2::pipeline pipe;
-    // Start streaming with default recommended configuration
-    pipe.start();
-
-
-
+    return Eigen::Vector3f(x, y, z); });
   float min_coord = 0.0f;
   float max_coord = 1.0f;
 
-  TimeTask("Find Min Max", [&] {
+  TimeTask("Find Min Max", [&]
+           {
     const auto [x_min, x_max] =
         std::minmax_element(inputs.begin(), inputs.end(), CompareAxis<0>);
     const auto [y_min, y_max] =
@@ -106,8 +228,7 @@ int main(int argc, char** argv) {
     std::array<float, 3> mins{x_min->x(), y_min->y(), z_min->z()};
     std::array<float, 3> maxes{x_max->x(), y_max->y(), z_max->z()};
     min_coord = *std::min_element(mins.begin(), mins.end());
-    max_coord = *std::max_element(maxes.begin(), maxes.end());
-  });
+    max_coord = *std::max_element(maxes.begin(), maxes.end()); });
 
   const float range = max_coord - min_coord;
 
@@ -116,44 +237,45 @@ int main(int argc, char** argv) {
   std::cout << "Range: " << range << "\n";
 
   // [Step 1] Compute Morton Codes
-  std::vector<Code_t> morton_keys(input_size,0xffffffff);
-  //morton_keys.reserve(input_size);
+  std::vector<Code_t> morton_keys(input_size, 0xffffffff);
+  // morton_keys.reserve(input_size);
 
-
-  
-  compute_time = TimeTask("Compute Morton Codes", [&]{compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range, num_threads); });
+  compute_time = TimeTask("Compute Morton Codes", [&]
+                          { compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range, num_threads); });
 
   // [Step 2] Sort Morton Codes by Key
- sort_time = TimeTask("Sort Morton Codes",
-           [&] { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
-           
-  // [Step 3-4] Handle Duplicates
-  duplicate_time = TimeTask("Handle Duplicates", [&] {
-    morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
-                      morton_keys.end());
-  });
+  sort_time = TimeTask("Sort Morton Codes",
+                       [&]
+                       { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
 
-  if (print) {
+  // [Step 3-4] Handle Duplicates
+  duplicate_time = TimeTask("Handle Duplicates", [&]
+                            { morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
+                                                morton_keys.end()); });
+
+  if (print)
+  {
     std::for_each(morton_keys.begin(), morton_keys.end(),
-                  [min_coord, range](const auto key) {
+                  [min_coord, range](const auto key)
+                  {
                     std::cout << key << "\t" << std::bitset<kCodeLen>(key)
                               << "\t"
                               << CodeToPoint(key, min_coord, range).transpose()
                               << std::endl;
                   });
   }
-  
+
   // [Step 5] Build Binary Radix Tree
   const auto num_brt_nodes = morton_keys.size() - 1;
   std::vector<brt::InnerNodes> inners(num_brt_nodes);
-  
-  brt_time = TimeTask("Build Binary Radix Tree", [&] {
-    create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), inners.data(), num_threads);
-  });
-  
 
-  if (print) {
-    for (unsigned int i = 0; i < num_brt_nodes; ++i) {
+  brt_time = TimeTask("Build Binary Radix Tree", [&]
+                      { create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), inners.data(), num_threads); });
+
+  if (print)
+  {
+    for (unsigned int i = 0; i < num_brt_nodes; ++i)
+    {
       std::cout << "Node " << i << "\n";
       std::cout << "\tdelta_node: " << inners[i].delta_node << "\n";
       std::cout << "\tleft: " << inners[i].left << "\n";
@@ -162,35 +284,30 @@ int main(int argc, char** argv) {
       std::cout << "\n";
     }
   }
-  
+
   // [Step 6] Count edges
   std::vector<int> edge_count(num_brt_nodes);
 
-   edges_time =  TimeTask("Count Edges", [&] {
+  edges_time = TimeTask("Count Edges", [&]
+                        {
     // Copy a "1" to the first element to account for the root
     edge_count[0] = 1;
-    oct::CalculateEdgeCountThreaded(edge_count.data(), inners.data(), num_brt_nodes, num_threads);
-  });
-  
-  
-  
-  
+    oct::CalculateEdgeCountThreaded(edge_count.data(), inners.data(), num_brt_nodes, num_threads); });
+
   // [Step 6.1] Prefix sum
-  
+
   std::vector<int> oc_node_offsets(num_brt_nodes + 1);
-  
-  prefix_time = TimeTask("Prefix Sum", [&] {
+
+  prefix_time = TimeTask("Prefix Sum", [&]
+                         {
     PrefixSumThreaded(edge_count, oc_node_offsets, num_brt_nodes, num_threads);
-    oc_node_offsets[0] = 0;
-  });
-  
-  
+    oc_node_offsets[0] = 0; });
 
   // [Step 6.2] Allocate BH nodes
   const int num_oc_nodes = oc_node_offsets.back();
   const int root_level = inners[0].delta_node / 3;
   const Code_t root_prefix = morton_keys[0] >> (kCodeLen - (3 * root_level));
-  std::vector<oct::OctNode> bh_nodes(num_oc_nodes);
+  std::vector<oct::OctNode<float>> bh_nodes(num_oc_nodes);
 
   // Debug print
   std::cout << "Num Morton Keys: " << morton_keys.size() << "\n";
@@ -198,27 +315,22 @@ int main(int argc, char** argv) {
   std::cout << "Num Octree Nodes: " << num_oc_nodes << "\n";
 
   // [Step 7] Create unlinked BH nodes
-  make_nodes_time = TimeTask("Make Unlinked BH nodes", [&] {
-    MakeNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
-              morton_keys.data(), inners.data(), num_brt_nodes, num_threads, range);
-  });
-  
-  
-  
+  make_nodes_time = TimeTask("Make Unlinked BH nodes", [&]
+                             { oct::MakeNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
+                                                             morton_keys.data(), inners.data(), num_brt_nodes, num_threads, range); });
 
   // [Step 8] Linking BH nodes
-   link_nodes_time = TimeTask("Link BH nodes", [&] {
-    LinkNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
-              morton_keys.data(), inners.data(), num_brt_nodes, num_threads);
-  });
-  
-  
+  link_nodes_time = TimeTask("Link BH nodes", [&]
+                             { oct::LinkNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
+                                                             morton_keys.data(), inners.data(), num_brt_nodes, num_threads); });
 
-  CheckTree(root_prefix, root_level * 3, bh_nodes.data(), 0,
-            morton_keys.data());
+  oct::CheckTree(root_prefix, root_level * 3, bh_nodes.data(), 0,
+                 morton_keys.data());
 
-  if (print) {
-    for (int i = 0; i < num_oc_nodes; ++i) {
+  if (print)
+  {
+    for (int i = 0; i < num_oc_nodes; ++i)
+    {
       std::cout << "OctNode " << i << "\n";
       std::cout << "\tchild_node_mask: "
                 << std::bitset<8>(bh_nodes[i].child_node_mask) << "\n";
@@ -226,7 +338,8 @@ int main(int argc, char** argv) {
                 << std::bitset<8>(bh_nodes[i].child_leaf_mask) << "\n";
 
       std::cout << "\tchild : [" << bh_nodes[i].children[0];
-      for (int j = 1; j < 8; ++j) {
+      for (int j = 1; j < 8; ++j)
+      {
         std::cout << ", " << bh_nodes[i].children[j];
       }
       std::cout << "]\n";
@@ -236,27 +349,25 @@ int main(int argc, char** argv) {
       std::cout << "\n";
     }
   }
-  
-  total_time = compute_time +
-   sort_time + 
-   duplicate_time + 
-   brt_time + 
-   edges_time + 
-   prefix_time + 
-   make_nodes_time + 
-   link_nodes_time;
-  
-  std::cout<<"total time: "<<total_time<<std::endl;
-  std::cout<<"Compute Morton Codes Time: "<< compute_time<<" ("<<compute_time/total_time*100<<"%)"<<std::endl;
-  std::cout<<"Sort Morton Codes Time: "<< sort_time<<" ("<<sort_time/total_time*100<<"%)"<<std::endl;
-  std::cout<<"Handle Duplicates Time: "<< duplicate_time<<" ("<<duplicate_time/total_time*100<<"%)"<<std::endl;
-  std::cout<<"Build Binary Radix Tree Time: "<< brt_time<<" ("<<brt_time/total_time*100<<"%)"<<std::endl;
-  std::cout<<"Count Edges Time: "<< edges_time<<" ("<<edges_time/total_time*100<<"%)"<<std::endl;
-  std::cout<<"Prefix Sum Time: "<< prefix_time<<" ("<<prefix_time/total_time*100<<"%)"<<std::endl;
-  std::cout<<"Make Unlinked BH nodes Time: "<< make_nodes_time<<" ("<<make_nodes_time/total_time*100<<"%)"<<std::endl;
-  std::cout<<"Link BH nodes Time: "<< link_nodes_time<<" ("<<link_nodes_time/total_time*100<<"%)"<<std::endl;
 
+  total_time = compute_time +
+               sort_time +
+               duplicate_time +
+               brt_time +
+               edges_time +
+               prefix_time +
+               make_nodes_time +
+               link_nodes_time;
+
+  std::cout << "total time: " << total_time << std::endl;
+  std::cout << "Compute Morton Codes Time: " << compute_time << " (" << compute_time / total_time * 100 << "%)" << std::endl;
+  std::cout << "Sort Morton Codes Time: " << sort_time << " (" << sort_time / total_time * 100 << "%)" << std::endl;
+  std::cout << "Handle Duplicates Time: " << duplicate_time << " (" << duplicate_time / total_time * 100 << "%)" << std::endl;
+  std::cout << "Build Binary Radix Tree Time: " << brt_time << " (" << brt_time / total_time * 100 << "%)" << std::endl;
+  std::cout << "Count Edges Time: " << edges_time << " (" << edges_time / total_time * 100 << "%)" << std::endl;
+  std::cout << "Prefix Sum Time: " << prefix_time << " (" << prefix_time / total_time * 100 << "%)" << std::endl;
+  std::cout << "Make Unlinked BH nodes Time: " << make_nodes_time << " (" << make_nodes_time / total_time * 100 << "%)" << std::endl;
+  std::cout << "Link BH nodes Time: " << link_nodes_time << " (" << link_nodes_time / total_time * 100 << "%)" << std::endl;
 
   return EXIT_SUCCESS;
 }
-

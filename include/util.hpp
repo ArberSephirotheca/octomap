@@ -2,6 +2,9 @@
 
 #include <chrono>
 #include <iostream>
+#include <librealsense2/rs.hpp>
+#include <pcl/point_types.h>
+#include <pcl/filters/passthrough.h>
 
 // [[nodiscard]] attributes on STL functions
 #ifndef _HAS_NODISCARD
@@ -104,6 +107,17 @@ bool CompareAxis(const Eigen::Vector3f& a, const Eigen::Vector3f& b) {
     return a.z() < b.z();
   }
 }
+
+template <uint8_t Axis>
+bool CompareAxis_pcl(const pcl::PointXYZ& a, const pcl::PointXYZ& b) {
+  if constexpr (Axis == 0) {
+    return a.x < b.x;
+  } else if constexpr (Axis == 1) {
+    return a.y < b.y;
+  } else {
+    return a.z < b.z;
+  }
+}
 // Function to perform counting sort on a specific digit's place (0 or 1)
 void countingSort(std::vector<Code_t>& arr, int exp, int threadId, int numThreads) {
     const size_t n = arr.size();
@@ -184,6 +198,22 @@ void compute_morton_code_openmp(const int input_size, std::vector<Eigen::Vector3
     }
 }
 
+void compute_morton_code_openmp_pcl(const int input_size, std::vector<pcl::PointXYZ, Eigen::aligned_allocator<pcl::PointXYZ>>& inputs,std::vector<Code_t>& morton_keys, float min_coord, const float range, int num_threads ){
+
+	const auto elements_per_thread = math::divide_ceil<int>(input_size, num_threads);
+    #pragma omp parallel num_threads(num_threads)
+    {
+        int thread_id = omp_get_thread_num();
+        int start = thread_id * elements_per_thread;
+        int end = (thread_id == num_threads - 1) ? input_size : (thread_id + 1) * elements_per_thread;
+
+        for (int t = start; t < end; ++t) {
+            pcl::PointXYZ input = inputs[t];
+            morton_keys[t] = PointToCode(input.x, input.y, input.z, min_coord, range);
+        }
+    }
+}
+
 
 
 void PrefixSumThreaded(const std::vector<int>& edge_counts, std::vector<int>& oc_node_offsets, int n, int num_threads){
@@ -216,4 +246,27 @@ void PrefixSumThreaded(const std::vector<int>& edge_counts, std::vector<int>& oc
         }
     }
     delete[] suma;
+}
+
+using pcl_ptr = pcl::PointCloud<pcl::PointXYZ>::Ptr;
+
+pcl_ptr points_to_pcl(const rs2::points& points)
+{
+    pcl_ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+    auto sp = points.get_profile().as<rs2::video_stream_profile>();
+    cloud->width = sp.width();
+    cloud->height = sp.height();
+    cloud->is_dense = false;
+    cloud->points.resize(points.size());
+    auto ptr = points.get_vertices();
+    for (auto& p : cloud->points)
+    {
+        p.x = ptr->x;
+        p.y = ptr->y;
+        p.z = ptr->z;
+        ptr++;
+    }
+
+    return cloud;
 }

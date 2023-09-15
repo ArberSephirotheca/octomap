@@ -31,3 +31,5 @@ constexpr int kCodeLen = 63;
   float dec_z = (static_cast<float>(dec_raw_z) / bit_scale) * range + min_coord;
   return {dec_x, dec_y, dec_z};
 }
+
+using CodeMap = std::unordered_map<Code_t, float>;
