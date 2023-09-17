@@ -168,7 +168,7 @@ void MakeNodesThreaded(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const
   // skipping root
 
   	const auto worker_fn = [nodes, node_offsets, edge_count,morton_keys, inners, num_brt_nodes, tree_range, root_level, elements_per_thread](int i) {
-		for (int t = i * elements_per_thread; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread); ++t)
+		for (int t = i * elements_per_thread+1; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread); ++t)
 			MakeNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, root_level, t, tree_range);
 	};
 
