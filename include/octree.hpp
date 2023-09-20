@@ -4,6 +4,7 @@
 
 #include "binary_radix_tree.hpp"
 #include <thread>
+#include <bitset>
 using Code_t = uint64_t;
 
 namespace oct {
@@ -53,17 +54,25 @@ struct OctNode {
 template <typename DATA_TYPE>
 class Octree{
   public:
-  Octree(Code_t root_prefix, int code_len, OctNode<DATA_TYPE>* nodes, int level, Code_t* codes): 
-        root_prefix_(root_prefix), code_len_(code_len), nodes_(nodes), level_(level), codes_(codes) {}
-  ~Octree();
-  OctNode<DATA_TYPE>* search(const Code_t code, const Code_t prefix, const int code_len, const int oct_idx);
-
+  Octree(Code_t root_prefix, std::vector<OctNode<DATA_TYPE>> nodes, int level, std::vector<Code_t> codes): 
+        root_prefix_(root_prefix), nodes_(nodes), level_(level), codes_(codes) {}
+  ~Octree() {}
+  Octree& operator=(const Octree& other){
+    root_prefix_ = other.root_prefix_;
+    nodes_ = other.nodes_;
+    level_ = other.level_;
+    codes_ = other.codes_;
+    return *this;
+  }
+  int search(const Code_t code, const Code_t prefix, const int code_len, const int oct_idx);
+  void update_node(const Code_t code);
+  std::vector<Code_t> update_nodes(const std::vector<Code_t> codes);
   private:
     Code_t root_prefix_;
-    OctNode<DATA_TYPE>* nodes_;
-    int code_len_;
+    std::vector<OctNode<DATA_TYPE>> nodes_;
     int level_;
-    Code_t* codes_;
+    std::vector<Code_t> codes_;
+    std::vector<Code_t> to_add;
 };
 
 
@@ -82,20 +91,41 @@ void OctNode<DATA_TYPE>::SetLeaf(const int leaf, const int my_child_idx) {
 }
 
 template<typename DATA_TYPE>
-  OctNode<DATA_TYPE>* Octree<DATA_TYPE>::search(const Code_t code, const Code_t prefix, const int code_len, const int oct_idx) {
+  int Octree<DATA_TYPE>::search(const Code_t code, const Code_t prefix, const int code_len, const int oct_idx) {
   const OctNode<DATA_TYPE>& node = nodes_[oct_idx];
-  for (int i = 0; i < 8; ++i) {
-    Code_t new_pref = (prefix << 3) | i;
-    // excatly the same code
-    if(!(new_pref ^ code)){
-      return node.children[i];
+  size_t child_idx = code >> (kCodeLen - (code_len+3)) &0x7;
+  if(node.child_node_mask & (1 << child_idx)){
+    return search(code, prefix, code_len + 3, node.children[child_idx]);
+  } else if (node.child_leaf_mask & (1 << child_idx)){
+    Code_t leaf_code = codes_[node.children[child_idx]];
+    if(code == leaf_code){
+      return node.children[child_idx];
+    } else {
+      return -1;
     }
-    if(new_pref & code == new_pref){
-      search(new_pref, code_len + 3, node.children[i]);
+  } else {
+    return -1;
+  }
+}
+
+template<typename DATA_TYPE>
+  void Octree<DATA_TYPE>::update_node(const Code_t code){
+    int oct_idx = search(code, root_prefix_, level_*3, 0);
+    if(oct_idx == -1){
+      to_add.push_back(code);
+    }else{
+      nodes_[oct_idx].data += 1;
     }
   }
-  return nullptr;
-}
+
+template<typename DATA_TYPE>
+  std::vector<Code_t> Octree<DATA_TYPE>::update_nodes(const std::vector<Code_t> codes){
+    for(int i = 0; i < codes.size(); i++){
+      update_node(codes[i]);
+    }
+    return to_add;
+  }
+
 
  bool IsLeaf(const int internal_value) {
   // check the most significant bit, which is used as a flag for "is leaf node"
