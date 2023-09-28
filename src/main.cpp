@@ -254,6 +254,7 @@ void test()
 
 void test2()
 {
+  float update_time;
   float compute_time;
   float sort_time;
   float duplicate_time;
@@ -400,8 +401,9 @@ void test2()
       const float range = max_coord - min_coord;
       std::vector<Code_t> morton_keys(input_size, 0xffffffff);
       compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range, num_threads);
-
-      std::vector<Code_t> to_add = octree.update_nodes(morton_keys);
+      std::vector<Code_t> to_add;
+      update_time = TimeTask("Update Nodes", [&]{to_add = octree.update_nodes(morton_keys); });
+      std::cout<<"update time: "<<update_time<<std::endl;
       if (!to_add.empty())
       {
         morton_keys.insert(morton_keys.end(), to_add.begin(), to_add.end());

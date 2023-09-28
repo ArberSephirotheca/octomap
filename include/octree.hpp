@@ -91,11 +91,15 @@ void OctNode<DATA_TYPE>::SetLeaf(const int leaf, const int my_child_idx) {
 }
 
 template<typename DATA_TYPE>
-  int Octree<DATA_TYPE>::search(const Code_t code, const Code_t prefix, const int code_len, const int oct_idx) {
-  const OctNode<DATA_TYPE>& node = nodes_[oct_idx];
-  size_t child_idx = code >> (kCodeLen - (code_len+3)) &0x7;
+  int Octree<DATA_TYPE>::search(const Code_t code, const Code_t prefix, int code_len, int oct_idx) {
+    const int k_shift = kCodeLen - 3;
+    size_t child_idx;
+  while(code_len <= 63){
+    OctNode<DATA_TYPE>& node = nodes_[oct_idx];
+    child_idx = code >> (k_shift - code_len) &0x7;
   if(node.child_node_mask & (1 << child_idx)){
-    return search(code, prefix, code_len + 3, node.children[child_idx]);
+    code_len += 3;
+    oct_idx = node.children[child_idx];
   } else if (node.child_leaf_mask & (1 << child_idx)){
     Code_t leaf_code = codes_[node.children[child_idx]];
     if(code == leaf_code){
@@ -106,20 +110,24 @@ template<typename DATA_TYPE>
   } else {
     return -1;
   }
+  }
 }
 
 template<typename DATA_TYPE>
   void Octree<DATA_TYPE>::update_node(const Code_t code){
-    int oct_idx = search(code, root_prefix_, level_*3, 0);
+    volatile int oct_idx = search(code, root_prefix_, level_*3, 0);
     if(oct_idx == -1){
       to_add.push_back(code);
     }else{
       nodes_[oct_idx].data += 1;
     }
+    
   }
 
 template<typename DATA_TYPE>
   std::vector<Code_t> Octree<DATA_TYPE>::update_nodes(const std::vector<Code_t> codes){
+    //parallize the lopp with openmp
+    //#pragma omp parallel for
     for(int i = 0; i < codes.size(); i++){
       update_node(codes[i]);
     }
