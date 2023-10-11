@@ -88,6 +88,12 @@
         "shared_mutex": "cpp",
         "cfenv": "cpp",
         "typeindex": "cpp",
-        "core": "cpp"
+        "core": "cpp",
+        "forward_list": "cpp",
+        "csignal": "cpp",
+        "any": "cpp",
+        "codecvt": "cpp",
+        "future": "cpp",
+        "span": "cpp"
     }
 }

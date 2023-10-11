@@ -11,8 +11,8 @@
 #include <random>
 #include <omp.h>
 #include <execution>
-#include <librealsense2/rs.hpp>
-#include <librealsense2/h/rs_types.h>
+//#include <librealsense2/rs.hpp>
+//#include <librealsense2/h/rs_types.h>
 #include "binary_radix_tree.hpp"
 #include "morton_util.hpp"
 #include "octree.hpp"
@@ -323,9 +323,6 @@ void test2()
                            [&]
                            { std::sort(std::execution::par, morton_keys.begin(), morton_keys.end()); });
 
-      sort_time = TimeTask("Sort Morton Codes radix sort",
-                           [&]
-                           { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
       // [Step 3-4] Handle Duplicates
       duplicate_time = TimeTask("Handle Duplicates", [&]
                                 { morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
@@ -401,7 +398,8 @@ void test2()
       std::vector<Code_t> morton_keys(input_size, 0xffffffff);
       compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range, num_threads);
 
-      std::vector<Code_t> to_add = octree.update_nodes(morton_keys);
+      std::vector<Code_t> to_add;
+      TimeTask("Update Node", [&]{to_add = octree.update_nodes(morton_keys);});
       if (!to_add.empty())
       {
         morton_keys.insert(morton_keys.end(), to_add.begin(), to_add.end());
@@ -410,10 +408,6 @@ void test2()
         sort_time = TimeTask("Sort Morton Codes",
                              [&]
                              { std::sort(std::execution::par, morton_keys.begin(), morton_keys.end()); });
-
-        sort_time = TimeTask("Sort Morton Codes radix sort",
-                             [&]
-                             { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
         // [Step 3-4] Handle Duplicates
         duplicate_time = TimeTask("Handle Duplicates", [&]
                                   { morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
@@ -564,12 +558,6 @@ int main(int argc, char **argv)
 
   compute_time = TimeTask("Compute Morton Codes", [&]
                           { compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range, num_threads); });
-  /*
-    // [Step 2] Sort Morton Codes by Key
-    sort_time = TimeTask("Sort Morton Codes radix sort",
-                         [&]
-                         { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
-  */
   sort_time = TimeTask("Sort Morton Codes",
                        [&]
                        { std::sort(std::execution::par, morton_keys.begin(), morton_keys.end()); });

@@ -7,21 +7,18 @@ file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/include/*.hpp")
 
 target_sources(
   my_app
-  PRIVATE src/main.cpp src/binary_radix_tree.cpp
+  PRIVATE src/main.cpp src/binary_radix_tree.cpp common/host_memory_pool.cpp common/unified_allocator.cpp
   PUBLIC ${HEADER_LIST})
 
 target_include_directories(
   my_app
   PRIVATE ${CMAKE_SOURCE_DIR}/extern/libmorton/include
           ${CMAKE_SOURCE_DIR}/extern/cxxopts/include
+          $(CMAKE_SOURCE_DIR)/extern/spdlog/include
   PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
 target_compile_features(my_app PUBLIC cxx_std_17)
 target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic -ltbb)
-
-# Add realsense2
-find_package(realsense2 REQUIRED)
-
 
 # Add TBB
 find_package(TBB REQUIRED)
@@ -45,5 +42,5 @@ endif()
 
 # Link OpenMP library
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS})
+    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX  ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS})
 endif()

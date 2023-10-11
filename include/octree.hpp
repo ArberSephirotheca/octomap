@@ -3,14 +3,13 @@
 #include <Eigen/Dense>
 
 #include "binary_radix_tree.hpp"
-#include <thread>
 #include <bitset>
+#include <thread>
 using Code_t = uint64_t;
 
 namespace oct {
 
-template<typename DATA_TYPE>
-struct OctNode {
+template <typename DATA_TYPE> struct OctNode {
   // Payload
   DATA_TYPE data;
 
@@ -51,54 +50,77 @@ struct OctNode {
   void SetLeaf(const int leaf, const int my_child_idx);
 };
 
-template <typename DATA_TYPE>
-class Octree{
-  public:
-  Octree(Code_t root_prefix, std::vector<OctNode<DATA_TYPE>> nodes, int level, std::vector<Code_t> codes): 
-        root_prefix_(root_prefix), nodes_(nodes), level_(level), codes_(codes) {}
+template <typename DATA_TYPE> class Octree {
+public:
+  Octree(Code_t root_prefix, std::vector<OctNode<DATA_TYPE>> nodes, int depth_level,
+         std::vector<Code_t> codes, float resolution, int node_num)
+      : root_prefix_(root_prefix), nodes_(nodes), depth_level_(depth_level), codes_(codes), resolution_(resolution),
+        resolution_factor_(1.0 / resolution) {
+        nodes_half_sizes_[0] = resolution_ / 2.0;
+        nodes_half_sizes_[1] = resolution_;
+        for(size_t i = 2; i < depth_level_; ++i){
+          nodes_half_sizes_[i] = nodes_half_sizes_[i-1] * 2.0;
+        }
+        // customize allocator
+        pool_ = allocator::Pool<OctNode<DATA_TYPE>>();
+  }
   ~Octree() {}
-  Octree& operator=(const Octree& other){
+  Octree &operator=(const Octree &other) {
     root_prefix_ = other.root_prefix_;
     nodes_ = other.nodes_;
     level_ = other.level_;
     codes_ = other.codes_;
     return *this;
   }
-  int search(const Code_t code, const Code_t prefix, const int code_len, const int oct_idx);
+  int search(const Code_t code, const Code_t prefix, const int code_len,
+             const int oct_idx);
   void update_node(const Code_t code);
   std::vector<Code_t> update_nodes(const std::vector<Code_t> codes);
-  private:
-    Code_t root_prefix_;
-    std::vector<OctNode<DATA_TYPE>> nodes_;
-    int level_;
-    std::vector<Code_t> codes_;
-    std::vector<Code_t> to_add;
+  bool move_line_inside(pcl::PointXYZ &oirign, pcl::PointXYZ &end) const;
+  void computeRayInit(pcl::PointXYZ &origin, pcl::PointXYZ &end,
+                      pcl::PointXYZ &direction_normalized, Code_t &current,
+                      Code_t &ending, std::arrayt<int, 3> &step,
+                      pcl::PointXYZ &t_delta, pcl::PointXYZ &t_max,
+                      int depth = 0) const;
+  float getNodeSize(int depth) const;
+  float getNodeHalfSize(int depth) const;
+private:
+  Code_t root_prefix_;
+  std::vector<OctNode<DATA_TYPE>> nodes_;
+  int depth_level_;
+  std::vector<Code_t> codes_;
+  std::vector<Code_t> to_add;
+  float resolution_;
+  float resolution_factor_;
+  std::array<float, 20> nodes_half_sizes_;
+  allocator::Pool<OctNode<DATA_TYPE>> pool_;
+  
 };
 
-
-template<typename DATA_TYPE>
+template <typename DATA_TYPE>
 void OctNode<DATA_TYPE>::SetChild(const int child, const int my_child_idx) {
   children[my_child_idx] = child;
   // TODO: atomicOr in CUDA
   child_node_mask |= (1 << my_child_idx);
 }
 
-template<typename DATA_TYPE>
+template <typename DATA_TYPE>
 void OctNode<DATA_TYPE>::SetLeaf(const int leaf, const int my_child_idx) {
   children[my_child_idx] = leaf;
   // TODO: atomicOr in CUDA
   child_leaf_mask |= (1 << my_child_idx);
 }
 
-template<typename DATA_TYPE>
-  int Octree<DATA_TYPE>::search(const Code_t code, const Code_t prefix, const int code_len, const int oct_idx) {
-  const OctNode<DATA_TYPE>& node = nodes_[oct_idx];
-  size_t child_idx = code >> (kCodeLen - (code_len+3)) &0x7;
-  if(node.child_node_mask & (1 << child_idx)){
+template <typename DATA_TYPE>
+int Octree<DATA_TYPE>::search(const Code_t code, const Code_t prefix,
+                              const int code_len, const int oct_idx) {
+  const OctNode<DATA_TYPE> &node = nodes_[oct_idx];
+  size_t child_idx = code >> (kCodeLen - (code_len + 3)) & 0x7;
+  if (node.child_node_mask & (1 << child_idx)) {
     return search(code, prefix, code_len + 3, node.children[child_idx]);
-  } else if (node.child_leaf_mask & (1 << child_idx)){
+  } else if (node.child_leaf_mask & (1 << child_idx)) {
     Code_t leaf_code = codes_[node.children[child_idx]];
-    if(code == leaf_code){
+    if (code == leaf_code) {
       return node.children[child_idx];
     } else {
       return -1;
@@ -108,35 +130,105 @@ template<typename DATA_TYPE>
   }
 }
 
-template<typename DATA_TYPE>
-  void Octree<DATA_TYPE>::update_node(const Code_t code){
-    int oct_idx = search(code, root_prefix_, level_*3, 0);
-    if(oct_idx == -1){
-      to_add.push_back(code);
-    }else{
-      nodes_[oct_idx].data += 1;
-    }
+template <typename DATA_TYPE>
+void Octree<DATA_TYPE>::update_node(const Code_t code) {
+  int oct_idx = search(code, root_prefix_, level_ * 3, 0);
+  if (oct_idx == -1) {
+    to_add.push_back(code);
+  } else {
+    nodes_[oct_idx].data += 1;
+  }
+}
+
+template <typename DATA_TYPE>
+std::vector<Code_t>
+Octree<DATA_TYPE>::update_nodes(const std::vector<Code_t> codes) {
+  for (int i = 0; i < codes.size(); i++) {
+    update_node(codes[i]);
+  }
+  return to_add;
+}
+
+template <typename DATA_TYPE>
+bool Octree<DATA_TYPE>::move_line_inside(pcl::PointXYZ &oirign,
+                                         pcl::PointXYZ &end) const {
+  // TODO
+}
+
+template <typename DATA_TYPE>
+void Octree<DATA_TYPE>::computeRayInit(pcl::PointXYZ &origin,
+                                       pcl::PointXYZ &end,
+                                       pcl::PointXYZ &direction_normalized,
+                                       Code_t &current, Code_t &ending,
+                                       std::arrayt<int, 3> &step,
+                                       pcl::PointXYZ &t_delta,
+                                       pcl::PointXYZ &t_max, int depth) const {
+ // current = PointToCode(origin.x, origin.y, origin.z);
+ // ending = PointToCode(end.x, end.y, end.z);
+
+  if (current == ending) {
+    return;
   }
 
-template<typename DATA_TYPE>
-  std::vector<Code_t> Octree<DATA_TYPE>::update_nodes(const std::vector<Code_t> codes){
-    for(int i = 0; i < codes.size(); i++){
-      update_node(codes[i]);
+  float node_size = getNodeSize(depth);
+  float node_half_size = getNodeHalfSize(depth);
+  pcl::PointXYZ voxel_border = current - origin;
+
+  for (unsigned int i = 0; i < 3; ++i) {
+    if (0 < direction_normalized[i]) {
+      step[i] = static_cast<int>(1U << depth);
+      voxel_border[i] += node_half_size;
+      t_delta[i] = node_size / std::abs(direction_normalized[i]);
+      t_max[i] = voxel_border[i] / direction_normalized[i];
+    } else if (0 > direction_normalized[i]) {
+      step[i] = -static_cast<int>(1U << depth);
+      voxel_border[i] -= node_half_size;
+      t_delta[i] = node_size / std::abs(direction_normalized[i]);
+      t_max[i] = voxel_border[i] / direction_normalized[i];
+    } else {
+      step[i] = 0;
+      t_delta[i] = std::numeric_limits<float>::max();
+      t_max[i] = std::numeric_limits<float>::max();
     }
-    return to_add;
+  }
+}
+
+template <typename DATA_TYPE>
+	static void Octree<DATA_TYPE>::computeRayTakeStep(Code_t& current, std::array<int, 3> const& step,
+	                               const pcl::PointXYZ& t_delta, pcl::PointXYZ& t_max)
+	{
+		std::size_t advance_dim = minElementIndex(t_max);
+		current[advance_dim] += step[advance_dim];
+		t_max[advance_dim] += t_delta[advance_dim];
+	}
+
+template <typename DATA_TYPE>
+  float Octree<DATA_TYPE>::getNodeSize(int depth) const{
+    return getNodeHalfSize(depth + 1);
+  }
+template <typename DATA_TYPE>
+  float Octree<DATA_TYPE>::getNodeHalfSize(int depth) const{
+    return nodes_half_sizes_[depth];
   }
 
 
- bool IsLeaf(const int internal_value) {
+bool IsLeaf(const int internal_value) {
   // check the most significant bit, which is used as a flag for "is leaf node"
   return internal_value >> (sizeof(int) * 8 - 1);
 }
 
- int GetLeafIndex(const int internal_value) {
+int GetLeafIndex(const int internal_value) {
   // delete the last bit which tells if this is leaf or internal index
   return internal_value &
          ~(1 << (sizeof(int) * 8 -
-                 1));  // NOLINT(clang-diagnostic-shift-sign-overflow)
+                 1)); // NOLINT(clang-diagnostic-shift-sign-overflow)
+}
+size_t minElementIndex(const pcl::PointXYZ& data){
+  if (data.x <= data.y){
+    return data.x <= data.z ? 0 : 2;
+  } else{
+    return data.y <= data.z ? 1 : 2;
+  }
 }
 
 /**
@@ -147,23 +239,26 @@ template<typename DATA_TYPE>
  * @param num_brt_nodes: number of binary radix tree nodes
  */
 
-void CalculateEdgeCountThreaded(int* edge_count, const brt::InnerNodes* inners,
-                        const int num_brt_nodes, int num_threads){
-	const auto elements_per_thread = math::divide_ceil<int>(num_brt_nodes, num_threads);
-	const auto worker_fn = [edge_count, inners, num_brt_nodes, elements_per_thread](int i) {
-		for (int t = (i * elements_per_thread)+1; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread+1); ++t){
-        const int my_depth = inners[t].delta_node / 3;
-        const int parent_depth = inners[inners[t].parent].delta_node / 3;
-        edge_count[t] = my_depth - parent_depth;
-      }
-	};
+void CalculateEdgeCountThreaded(int *edge_count, const brt::InnerNodes *inners,
+                                const int num_brt_nodes, int num_threads) {
+  const auto elements_per_thread =
+      math::divide_ceil<int>(num_brt_nodes, num_threads);
+  const auto worker_fn = [edge_count, inners, num_brt_nodes,
+                          elements_per_thread](int i) {
+    for (int t = (i * elements_per_thread) + 1;
+         t < math::min(num_brt_nodes, (i + 1) * elements_per_thread + 1); ++t) {
+      const int my_depth = inners[t].delta_node / 3;
+      const int parent_depth = inners[inners[t].parent].delta_node / 3;
+      edge_count[t] = my_depth - parent_depth;
+    }
+  };
 
-	// Create the threads
-	std::vector<std::thread> workers;
-	for (int i = 0; i < num_threads; ++i)
-		workers.push_back(std::thread(worker_fn, i));
-	for (auto& t : workers)	t.join();
-
+  // Create the threads
+  std::vector<std::thread> workers;
+  for (int i = 0; i < num_threads; ++i)
+    workers.push_back(std::thread(worker_fn, i));
+  for (auto &t : workers)
+    t.join();
 }
 /**
  * @brief Make the unlinked octree nodes from the binary radix tree.
@@ -177,16 +272,18 @@ void CalculateEdgeCountThreaded(int* edge_count, const brt::InnerNodes* inners,
  * @param num_brt_nodes: number of binary radix tree nodes
  * @param tree_range: range of the entire octree, default 1.0f
  */
-template<typename DATA_TYPE>
-void MakeNodes(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const int* edge_count,
-               const Code_t* morton_keys, const brt::InnerNodes* inners,
-               int num_brt_nodes, float tree_range = 1.0f);
+template <typename DATA_TYPE>
+void MakeNodes(OctNode<DATA_TYPE> *nodes, const int *node_offsets,
+               const int *edge_count, const Code_t *morton_keys,
+               const brt::InnerNodes *inners, int num_brt_nodes,
+               float tree_range = 1.0f);
 
-template<typename DATA_TYPE>
-void MakeNodesThreaded(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const int* edge_count,
-               const Code_t* morton_keys, const brt::InnerNodes* inners,
-               int num_brt_nodes, int num_threads, float tree_range = 1.0f){
-                
+template <typename DATA_TYPE>
+void MakeNodesThreaded(OctNode<DATA_TYPE> *nodes, const int *node_offsets,
+                       const int *edge_count, const Code_t *morton_keys,
+                       const brt::InnerNodes *inners, int num_brt_nodes,
+                       int num_threads, float tree_range = 1.0f) {
+
   // the root doesn't represent level 0 of the "entire" octree
   const int root_level = inners[0].delta_node / 3;
   const Code_t root_prefix = morton_keys[0] >> (kCodeLen - (root_level * 3));
@@ -194,91 +291,100 @@ void MakeNodesThreaded(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const
   nodes[0].cornor = CodeToPoint(root_prefix << (kCodeLen - (root_level * 3)));
   nodes[0].cell_size = tree_range;
 
-	const auto elements_per_thread = math::divide_ceil<int>(num_brt_nodes, num_threads);
+  const auto elements_per_thread =
+      math::divide_ceil<int>(num_brt_nodes, num_threads);
   // skipping root
 
-  	const auto worker_fn = [nodes, node_offsets, edge_count,morton_keys, inners, num_brt_nodes, tree_range, root_level, elements_per_thread](int i) {
-		for (int t = i * elements_per_thread+1; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread); ++t)
-			MakeNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, root_level, t, tree_range);
-	};
+  const auto worker_fn = [nodes, node_offsets, edge_count, morton_keys, inners,
+                          num_brt_nodes, tree_range, root_level,
+                          elements_per_thread](int i) {
+    for (int t = i * elements_per_thread + 1;
+         t < math::min(num_brt_nodes, (i + 1) * elements_per_thread); ++t)
+      MakeNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners,
+                      root_level, t, tree_range);
+  };
 
-
-	// Create the threads
-	std::vector<std::thread> workers;
-	for (int i = 0; i < num_threads; ++i)
-		workers.push_back(std::thread(worker_fn, i));
-	for (auto& t : workers)	t.join();
+  // Create the threads
+  std::vector<std::thread> workers;
+  for (int i = 0; i < num_threads; ++i)
+    workers.push_back(std::thread(worker_fn, i));
+  for (auto &t : workers)
+    t.join();
 }
 
-template<typename DATA_TYPE>
-void MakeNodesOpenMP(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const int* edge_count,
-               const Code_t* morton_keys, const brt::InnerNodes* inners,
-               int num_brt_nodes, int num_threads, float tree_range = 1.0){
-    const int root_level = inners[0].delta_node / 3;
-    const Code_t root_prefix = morton_keys[0] >> (kCodeLen - (root_level * 3));
+template <typename DATA_TYPE>
+void MakeNodesOpenMP(OctNode<DATA_TYPE> *nodes, const int *node_offsets,
+                     const int *edge_count, const Code_t *morton_keys,
+                     const brt::InnerNodes *inners, int num_brt_nodes,
+                     int num_threads, float tree_range = 1.0) {
+  const int root_level = inners[0].delta_node / 3;
+  const Code_t root_prefix = morton_keys[0] >> (kCodeLen - (root_level * 3));
 
-    nodes[0].cornor = CodeToPoint(root_prefix << (kCodeLen - (root_level * 3)));
-    nodes[0].cell_size = tree_range;
+  nodes[0].cornor = CodeToPoint(root_prefix << (kCodeLen - (root_level * 3)));
+  nodes[0].cell_size = tree_range;
 
-    const auto elements_per_thread = num_brt_nodes / num_threads;
-    // skipping root
+  const auto elements_per_thread = num_brt_nodes / num_threads;
+  // skipping root
 
-    #pragma omp parallel num_threads(num_threads)
-    {
-        int thread_id = omp_get_thread_num();
-        int start = thread_id * elements_per_thread;
-        int end = (thread_id == num_threads - 1) ? num_brt_nodes : (thread_id + 1) * elements_per_thread;
+#pragma omp parallel num_threads(num_threads)
+  {
+    int thread_id = omp_get_thread_num();
+    int start = thread_id * elements_per_thread;
+    int end = (thread_id == num_threads - 1)
+                  ? num_brt_nodes
+                  : (thread_id + 1) * elements_per_thread;
 
-        #pragma omp for
-        for (int t = start; t < end; ++t) {
-            MakeNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, root_level, t, tree_range);
-        }
+#pragma omp for
+    for (int t = start; t < end; ++t) {
+      MakeNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners,
+                      root_level, t, tree_range);
     }
+  }
 }
 
+template <typename DATA_TYPE>
+void MakeNodesHelper(OctNode<DATA_TYPE> *nodes, const int *node_offsets,
+                     const int *edge_count, const Code_t *morton_keys,
+                     const brt::InnerNodes *inners, const int root_level, int i,
+                     float tree_range = 1.0f) {
+  int oct_idx = node_offsets[i];
+  const int n_new_nodes = edge_count[i];
+  for (int j = 0; j < n_new_nodes - 1; ++j) {
+    const int level = inners[i].delta_node / 3 - j;
+    const Code_t node_prefix = morton_keys[i] >> (kCodeLen - (3 * level));
+    const int child_idx = static_cast<int>(node_prefix & 0b111);
+    const int parent = oct_idx + 1;
 
-template<typename DATA_TYPE>
-void MakeNodesHelper(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const int* edge_count,
-               const Code_t* morton_keys, const brt::InnerNodes* inners,
-               const int root_level, int i, float tree_range = 1.0f){
-    int oct_idx = node_offsets[i];
-    const int n_new_nodes = edge_count[i];
-    for (int j = 0; j < n_new_nodes - 1; ++j) {
-      const int level = inners[i].delta_node / 3 - j;
-      const Code_t node_prefix = morton_keys[i] >> (kCodeLen - (3 * level));
-      const int child_idx = static_cast<int>(node_prefix & 0b111);
-      const int parent = oct_idx + 1;
+    nodes[parent].SetChild(oct_idx, child_idx);
 
-      nodes[parent].SetChild(oct_idx, child_idx);
+    // calculate corner point (LSB have already been shifted off)
+    nodes[oct_idx].cornor =
+        CodeToPoint(node_prefix << (kCodeLen - (3 * level)));
 
-      // calculate corner point (LSB have already been shifted off)
-      nodes[oct_idx].cornor =
-          CodeToPoint(node_prefix << (kCodeLen - (3 * level)));
+    // each cell is half the size of the level above it
+    nodes[oct_idx].cell_size =
+        tree_range / static_cast<float>(1 << (level - root_level));
 
-      // each cell is half the size of the level above it
-      nodes[oct_idx].cell_size =
-          tree_range / static_cast<float>(1 << (level - root_level));
+    oct_idx = parent;
+  }
 
-      oct_idx = parent;
+  if (n_new_nodes > 0) {
+    int rt_parent = inners[i].parent;
+    while (edge_count[rt_parent] == 0) {
+      rt_parent = inners[rt_parent].parent;
     }
+    const int oct_parent = node_offsets[rt_parent];
+    const int top_level = inners[i].delta_node / 3 - n_new_nodes + 1;
+    const Code_t top_node_prefix =
+        morton_keys[i] >> (kCodeLen - (3 * top_level));
+    const int child_idx = static_cast<int>(top_node_prefix & 0b111);
 
-    if (n_new_nodes > 0) {
-      int rt_parent = inners[i].parent;
-      while (edge_count[rt_parent] == 0) {
-        rt_parent = inners[rt_parent].parent;
-      }
-      const int oct_parent = node_offsets[rt_parent];
-      const int top_level = inners[i].delta_node / 3 - n_new_nodes + 1;
-      const Code_t top_node_prefix =
-          morton_keys[i] >> (kCodeLen - (3 * top_level));
-      const int child_idx = static_cast<int>(top_node_prefix & 0b111);
-
-      nodes[oct_parent].SetChild(oct_idx, child_idx);
-      nodes[oct_idx].cornor =
-          CodeToPoint(top_node_prefix << (kCodeLen - (3 * top_level)));
-      nodes[oct_idx].cell_size =
-          tree_range / static_cast<float>(1 << (top_level - root_level));
-    }
+    nodes[oct_parent].SetChild(oct_idx, child_idx);
+    nodes[oct_idx].cornor =
+        CodeToPoint(top_node_prefix << (kCodeLen - (3 * top_level)));
+    nodes[oct_idx].cell_size =
+        tree_range / static_cast<float>(1 << (top_level - root_level));
+  }
 }
 
 /**
@@ -292,95 +398,102 @@ void MakeNodesHelper(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const i
  * @param num_brt_nodes: number of binary radix tree nodes
  */
 
-template<typename DATA_TYPE>
-void LinkNodesThreaded(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const int* edge_count,
-               const Code_t* morton_keys, const brt::InnerNodes* inners,
-               int num_brt_nodes, int num_threads){
+template <typename DATA_TYPE>
+void LinkNodesThreaded(OctNode<DATA_TYPE> *nodes, const int *node_offsets,
+                       const int *edge_count, const Code_t *morton_keys,
+                       const brt::InnerNodes *inners, int num_brt_nodes,
+                       int num_threads) {
 
-	const auto elements_per_thread = math::divide_ceil<int>(num_brt_nodes, num_threads);
+  const auto elements_per_thread =
+      math::divide_ceil<int>(num_brt_nodes, num_threads);
 
-  	const auto worker_fn = [nodes, node_offsets, edge_count, morton_keys, inners, num_brt_nodes, elements_per_thread](int i) {
-		for (int t = i * elements_per_thread; t < math::min(num_brt_nodes, (i + 1)*elements_per_thread); ++t)
-			LinkNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, t);
-	};
+  const auto worker_fn = [nodes, node_offsets, edge_count, morton_keys, inners,
+                          num_brt_nodes, elements_per_thread](int i) {
+    for (int t = i * elements_per_thread;
+         t < math::min(num_brt_nodes, (i + 1) * elements_per_thread); ++t)
+      LinkNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, t);
+  };
 
-
-	// Create the threads
-	std::vector<std::thread> workers;
-	for (int i = 0; i < num_threads; ++i)
-		workers.push_back(std::thread(worker_fn, i));
-	for (auto& t : workers)	t.join();
+  // Create the threads
+  std::vector<std::thread> workers;
+  for (int i = 0; i < num_threads; ++i)
+    workers.push_back(std::thread(worker_fn, i));
+  for (auto &t : workers)
+    t.join();
 }
 
-template<typename DATA_TYPE>
-void LinkNodesOpenMP(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const int* edge_count,
-               const Code_t* morton_keys, const brt::InnerNodes* inners,
-               int num_brt_nodes, int num_threads){
+template <typename DATA_TYPE>
+void LinkNodesOpenMP(OctNode<DATA_TYPE> *nodes, const int *node_offsets,
+                     const int *edge_count, const Code_t *morton_keys,
+                     const brt::InnerNodes *inners, int num_brt_nodes,
+                     int num_threads) {
 
-    const auto elements_per_thread = num_brt_nodes / num_threads;
+  const auto elements_per_thread = num_brt_nodes / num_threads;
 
-    #pragma omp parallel num_threads(num_threads)
-    {
-        int thread_id = omp_get_thread_num();
-        int start = thread_id * elements_per_thread;
-        int end = (thread_id == num_threads - 1) ? num_brt_nodes : (thread_id + 1) * elements_per_thread;
+#pragma omp parallel num_threads(num_threads)
+  {
+    int thread_id = omp_get_thread_num();
+    int start = thread_id * elements_per_thread;
+    int end = (thread_id == num_threads - 1)
+                  ? num_brt_nodes
+                  : (thread_id + 1) * elements_per_thread;
 
-        #pragma omp for
-        for (int t = start; t < end; ++t) {
-            LinkNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, t);
-        }
+#pragma omp for
+    for (int t = start; t < end; ++t) {
+      LinkNodesHelper(nodes, node_offsets, edge_count, morton_keys, inners, t);
     }
+  }
 }
 
-template<typename DATA_TYPE>
-void LinkNodesHelper(OctNode<DATA_TYPE>* nodes, const int* node_offsets, const int* edge_count,
-               const Code_t* morton_keys, const brt::InnerNodes* inners,
-               int i){
-    if (IsLeaf(inners[i].left)) {
-      const int leaf_idx = GetLeafIndex(inners[i].left);
-      const int leaf_level = inners[i].delta_node / 3 + 1;
-      const Code_t leaf_prefix =
-          morton_keys[leaf_idx] >> (kCodeLen - (3 * leaf_level));
+template <typename DATA_TYPE>
+void LinkNodesHelper(OctNode<DATA_TYPE> *nodes, const int *node_offsets,
+                     const int *edge_count, const Code_t *morton_keys,
+                     const brt::InnerNodes *inners, int i) {
+  if (IsLeaf(inners[i].left)) {
+    const int leaf_idx = GetLeafIndex(inners[i].left);
+    const int leaf_level = inners[i].delta_node / 3 + 1;
+    const Code_t leaf_prefix =
+        morton_keys[leaf_idx] >> (kCodeLen - (3 * leaf_level));
 
-      const int child_idx = static_cast<int>(leaf_prefix & 0b111);
-      // walk up the radix tree until finding a node which contributes an
-      // octnode
-      int rt_node = i;
-      while (edge_count[rt_node] == 0) {
-        rt_node = inners[rt_node].parent;
-      }
-      // the lowest octnode in the string contributed by rt_node will be the
-      // lowest index
-      const int bottom_oct_idx = node_offsets[rt_node];
-      nodes[bottom_oct_idx].SetLeaf(leaf_idx, child_idx);
+    const int child_idx = static_cast<int>(leaf_prefix & 0b111);
+    // walk up the radix tree until finding a node which contributes an
+    // octnode
+    int rt_node = i;
+    while (edge_count[rt_node] == 0) {
+      rt_node = inners[rt_node].parent;
     }
+    // the lowest octnode in the string contributed by rt_node will be the
+    // lowest index
+    const int bottom_oct_idx = node_offsets[rt_node];
+    nodes[bottom_oct_idx].SetLeaf(leaf_idx, child_idx);
+  }
 
-    if (IsLeaf(inners[i].right)) {
-      const int leaf_idx = GetLeafIndex(inners[i].left) + 1;
-      const int leaf_level = inners[i].delta_node / 3 + 1;
-      const Code_t leaf_prefix =
-          morton_keys[leaf_idx] >> (kCodeLen - (3 * leaf_level));
+  if (IsLeaf(inners[i].right)) {
+    const int leaf_idx = GetLeafIndex(inners[i].left) + 1;
+    const int leaf_level = inners[i].delta_node / 3 + 1;
+    const Code_t leaf_prefix =
+        morton_keys[leaf_idx] >> (kCodeLen - (3 * leaf_level));
 
-      const int child_idx = static_cast<int>(leaf_prefix & 0b111);
+    const int child_idx = static_cast<int>(leaf_prefix & 0b111);
 
-      // walk up the radix tree until finding a node which contributes an
-      // octnode
-      int rt_node = i;
-      while (edge_count[rt_node] == 0) {
-        rt_node = inners[rt_node].parent;
-      }
-      // the lowest octnode in the string contributed by rt_node will be the
-      // lowest index
-      const int bottom_oct_idx = node_offsets[rt_node];
-      nodes[bottom_oct_idx].SetLeaf(leaf_idx, child_idx);
+    // walk up the radix tree until finding a node which contributes an
+    // octnode
+    int rt_node = i;
+    while (edge_count[rt_node] == 0) {
+      rt_node = inners[rt_node].parent;
     }
+    // the lowest octnode in the string contributed by rt_node will be the
+    // lowest index
+    const int bottom_oct_idx = node_offsets[rt_node];
+    nodes[bottom_oct_idx].SetLeaf(leaf_idx, child_idx);
+  }
 }
 
-
-template<typename DATA_TYPE>
-void CheckTree(const Code_t prefix, const int code_len, const OctNode<DATA_TYPE>* nodes,
-               const int oct_idx, const Code_t* codes) {
-  const OctNode<DATA_TYPE>& node = nodes[oct_idx];
+template <typename DATA_TYPE>
+void CheckTree(const Code_t prefix, const int code_len,
+               const OctNode<DATA_TYPE> *nodes, const int oct_idx,
+               const Code_t *codes) {
+  const OctNode<DATA_TYPE> &node = nodes[oct_idx];
   for (int i = 0; i < 8; ++i) {
     Code_t new_pref = (prefix << 3) | i;
     if (node.child_node_mask & (1 << i)) {
@@ -396,4 +509,4 @@ void CheckTree(const Code_t prefix, const int code_len, const OctNode<DATA_TYPE>
   }
 }
 
-}  // namespace oct
+} // namespace oct
