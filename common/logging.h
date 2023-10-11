@@ -2,7 +2,6 @@
 
 #include <functional>
 #include <cstring>
-#include "common/logging.h"
 #include <spdlog/common.h>
 #include <spdlog/fmt/fmt.h>
 

@@ -13,10 +13,11 @@
 #include <execution>
 #include <librealsense2/rs.hpp>
 #include <librealsense2/h/rs_types.h>
-#include "binary_radix_tree.hpp"
-#include "morton_util.hpp"
-#include "octree.hpp"
-#include "util.hpp"
+#include "include/binary_radix_tree.hpp"
+#include "include/morton_util.hpp"
+#include "include/octree.hpp"
+#include "include/util.hpp"
+#include "common/host_memory_pool.h"
 // #include "occupancy_map.hpp"
 using pcl_ptr = pcl::PointCloud<pcl::PointXYZ>::Ptr;
 // const int num_threads = std::thread::hardware_concurrency();

@@ -1,9 +1,9 @@
-#include "binary_radix_tree.hpp"
+#include "include/binary_radix_tree.hpp"
 
 #include <cassert>
 #include <thread>
 
-#include "morton_util.hpp"
+#include "include/morton_util.hpp"
 
 namespace brt {
 

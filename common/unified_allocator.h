@@ -1,10 +1,11 @@
 #pragma once
+#include "common/logging.h"
 #include <mutex>
 #include <vector>
 #include <memory>
 #include <map>
 
-namespace redwood:lang {
+namespace redwood::lang {
 
 class HostMemoryPool;
 

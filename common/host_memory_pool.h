@@ -1,5 +1,6 @@
 #pragma once
 #include "common/unified_allocator.h"
+#include "common/logging.h"
 #include <mutex>
 #include <vector>
 #include <memory>
@@ -9,7 +10,7 @@ namespace redwood::lang {
 
 // A memory pool that runs on the host
 
-class  HostMemoryPool {
+class HostMemoryPool {
  public:
   static const size_t page_size;
 

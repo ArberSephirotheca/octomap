@@ -4,7 +4,7 @@
 #include "common/host_memory_pool.h"
 #include <string>
 
-namespace taichi::lang {
+namespace redwood::lang {
 
 const std::size_t UnifiedAllocator::default_allocator_size =
     1 << 30;  // 1 GB per allocator
@@ -12,7 +12,7 @@ const std::size_t UnifiedAllocator::default_allocator_size =
 template <typename T>
 static void swap_erase_vector(std::vector<T> &vec, size_t idx) {
   bool is_last = idx == vec.size() - 1;
-  TI_ASSERT(idx < vec.size());
+  RW_ASSERT(idx < vec.size());
 
   if (!is_last) {
     std::swap(vec[idx], vec.back());
@@ -78,8 +78,8 @@ void *UnifiedAllocator::allocate(std::size_t size,
   chunk.tail = (void *)((std::size_t)chunk.head + allocation_size);
   chunk.is_exclusive = exclusive;
 
-  TI_ASSERT(chunk.data != nullptr);
-  TI_ASSERT(uint64(chunk.data) % HostMemoryPool::page_size == 0);
+  RW_ASSERT(chunk.data != nullptr);
+  RW_ASSERT(uint64_t(chunk.data) % HostMemoryPool::page_size == 0);
 
   chunks_.emplace_back(std::move(chunk));
   return ptr;

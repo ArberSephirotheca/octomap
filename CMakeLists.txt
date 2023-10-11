@@ -2,19 +2,23 @@ cmake_minimum_required(VERSION 3.16)
 project(my_app LANGUAGES CXX)
 
 add_executable(my_app)
+add_subdirectory(common)
+file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/include/*.hpp"
+  "${CMAKE_SOURCE_DIR}/common/*.h")
 
-file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/include/*.hpp")
 
 target_sources(
   my_app
-  PRIVATE src/main.cpp src/binary_radix_tree.cpp
+  PRIVATE src/main.cpp src/binary_radix_tree.cpp #common/unified_allocator.cpp common/host_memory_pool.cpp
   PUBLIC ${HEADER_LIST})
 
 target_include_directories(
   my_app
   PRIVATE ${CMAKE_SOURCE_DIR}/extern/libmorton/include
           ${CMAKE_SOURCE_DIR}/extern/cxxopts/include
-  PUBLIC ${CMAKE_SOURCE_DIR}/include)
+          ${CMAKE_SOURCE_DIR}/extern/spdlog/include
+          #${CMAKE_SOURCE_DIR}/common
+  PUBLIC ${CMAKE_SOURCE_DIR})
 
 target_compile_features(my_app PUBLIC cxx_std_17)
 target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic -ltbb)
@@ -45,5 +49,5 @@ endif()
 
 # Link OpenMP library
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS})
+    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS} common_redwood)
 endif()

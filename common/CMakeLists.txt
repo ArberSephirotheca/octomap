@@ -1,0 +1,24 @@
+set(COMMON_REDWOOD common_redwood)
+add_library(${COMMON_REDWOOD})
+target_sources(${COMMON_REDWOOD}
+  PRIVATE
+    host_memory_pool.cpp
+    unified_allocator.cpp
+    logging.cpp
+    core.cpp
+  )
+
+target_include_directories(${COMMON_REDWOOD}
+  PUBLIC
+    ${PROJECT_SOURCE_DIR}/external/spdlog/include
+  PRIVATE
+    ${PROJECT_SOURCE_DIR}
+  )
+
+  target_compile_definitions(${COMMON_REDWOOD} PUBLIC)
+
+  target_include_directories(${COMMON_REDWOOD}
+    PRIVATE
+    )
+
+#target_link_libraries(${COMMON_REDWOOD} PRIVATE taichi_util)

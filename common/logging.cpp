@@ -1,5 +1,5 @@
 #include "common/logging.h"
-
+#include "common/core.h"
 #include <spdlog/common.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
@@ -46,13 +46,8 @@ int Logger::level_enum_from_string(const std::string &level_name) {
 }
 
 Logger::Logger() {
-#ifdef ANDROID
-  console_ = spdlog::android_logger_mt("android", "taichi");
-  console_->flush_on(spdlog::level::trace);
-#else
   console_ = spdlog::stderr_color_mt("stderr");
   console_->flush_on(spdlog::level::trace);
-#endif
   RW_LOG_SET_PATTERN("%^[%L %D %X.%e %t] %v%$");
 
   set_level_default();
@@ -84,11 +79,7 @@ void Logger::error(const std::string &s, bool raise_exception) {
   if (print_stacktrace_fn_) {
     print_stacktrace_fn_();
   }
-  if (taichi::CoreState::get_instance().trigger_gdb_when_crash) {
-#if defined(RW_PLATFORM_LINUX)
-    trash(system(fmt::format("sudo gdb -p {}", PID::get_pid()).c_str()));
-#endif
-  }
+  trash(system(fmt::format("sudo gdb -p {}", PID::get_pid()).c_str()));
   if (raise_exception)
     throw s;
 }
@@ -123,4 +114,4 @@ Logger &Logger::get_instance() {
   return *l;
 }
 
-}  // namespace taichi
+}  // namespace redwood
