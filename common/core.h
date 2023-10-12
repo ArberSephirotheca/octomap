@@ -1,4 +1,13 @@
+#pragma once
+#include <iostream>
 #include <type_traits>
+#include <cstdint>
+#include <algorithm>
+#include <vector>
+#include <string>
+#include <functional>
+#include "common/platform_macros.h"
+#include "common/logging.h"
 namespace redwood
 {
     template <typename T>

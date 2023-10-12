@@ -324,10 +324,6 @@ void test2()
       sort_time = TimeTask("Sort Morton Codes",
                            [&]
                            { std::sort(std::execution::par, morton_keys.begin(), morton_keys.end()); });
-
-      sort_time = TimeTask("Sort Morton Codes radix sort",
-                           [&]
-                           { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
       // [Step 3-4] Handle Duplicates
       duplicate_time = TimeTask("Handle Duplicates", [&]
                                 { morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
@@ -413,10 +409,6 @@ void test2()
         sort_time = TimeTask("Sort Morton Codes",
                              [&]
                              { std::sort(std::execution::par, morton_keys.begin(), morton_keys.end()); });
-
-        sort_time = TimeTask("Sort Morton Codes radix sort",
-                             [&]
-                             { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
         // [Step 3-4] Handle Duplicates
         duplicate_time = TimeTask("Handle Duplicates", [&]
                                   { morton_keys.erase(std::unique(morton_keys.begin(), morton_keys.end()),
@@ -477,7 +469,8 @@ void test2()
 
 int main(int argc, char **argv)
 {
-  test2();
+  //test2();
+  auto pool = redwood::lang::HostMemoryPool();
   float compute_time;
   float sort_time;
   float duplicate_time;

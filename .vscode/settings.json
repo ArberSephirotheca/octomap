@@ -88,6 +88,7 @@
         "shared_mutex": "cpp",
         "cfenv": "cpp",
         "typeindex": "cpp",
-        "core": "cpp"
+        "core": "cpp",
+        "*.txx": "cpp"
     }
 }

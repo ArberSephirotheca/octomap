@@ -6,7 +6,10 @@ target_sources(${COMMON_REDWOOD}
     unified_allocator.cpp
     logging.cpp
     core.cpp
+    device.cpp
+    dynamic_loader.cpp
   )
+  target_compile_features(common_redwood PUBLIC cxx_std_17)
 
 target_include_directories(${COMMON_REDWOOD}
   PUBLIC

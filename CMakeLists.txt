@@ -3,6 +3,9 @@ project(my_app LANGUAGES CXX)
 
 add_executable(my_app)
 add_subdirectory(common)
+add_subdirectory(llvm)
+add_subdirectory(cpu)
+add_subdirectory(cuda)
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/include/*.hpp"
   "${CMAKE_SOURCE_DIR}/common/*.h")
 
@@ -51,3 +54,7 @@ endif()
 if(OpenMP_CXX_FOUND)
     target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS} common_redwood)
 endif()
+
+
+find_package(CUDA REQUIRED)
+include_directories(${CUDA_INCLUDE_DIRS})

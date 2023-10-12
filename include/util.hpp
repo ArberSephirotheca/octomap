@@ -38,7 +38,7 @@ float TimeTask(const std::string& task_name, Func&& f) {
             << "s. " << std::endl;
   return time_span.count();
 }
-
+/*
 #define BASE_BITS 8
 #define BASE (1 << BASE_BITS)
 #define MASK (BASE-1)
@@ -95,6 +95,7 @@ void omp_lsd_radix_sort(size_t n, std::vector<uint64_t>& data, const int num_thr
         buffer = tmp;
     }
 }
+*/
 
 
 template <uint8_t Axis>
