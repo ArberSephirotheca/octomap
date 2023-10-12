@@ -470,7 +470,6 @@ void test2()
 int main(int argc, char **argv)
 {
   //test2();
-  auto pool = redwood::lang::HostMemoryPool();
   float compute_time;
   float sort_time;
   float duplicate_time;
@@ -524,7 +523,7 @@ int main(int argc, char **argv)
 
   // Prepare Inputs
   // constexpr int input_size = 1024;
-  constexpr int input_size = 1280 * 720;
+  constexpr int input_size = 10000000;
   std::vector<Eigen::Vector3f> inputs(input_size);
   std::generate(inputs.begin(), inputs.end(), [&]
                 {

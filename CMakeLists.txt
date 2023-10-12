@@ -2,17 +2,17 @@ cmake_minimum_required(VERSION 3.16)
 project(my_app LANGUAGES CXX)
 
 add_executable(my_app)
-add_subdirectory(common)
-add_subdirectory(llvm)
-add_subdirectory(cpu)
-add_subdirectory(cuda)
+#add_subdirectory(common)
+#add_subdirectory(llvm)
+#add_subdirectory(cpu)
+#add_subdirectory(cuda)
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/include/*.hpp"
   "${CMAKE_SOURCE_DIR}/common/*.h")
 
 
 target_sources(
   my_app
-  PRIVATE src/main.cpp src/binary_radix_tree.cpp #common/unified_allocator.cpp common/host_memory_pool.cpp
+  PRIVATE src/main.cpp src/binary_radix_tree.cpp
   PUBLIC ${HEADER_LIST})
 
 target_include_directories(
@@ -52,7 +52,8 @@ endif()
 
 # Link OpenMP library
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS} common_redwood)
+    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS}) 
+    #common_redwood llvm_redwood cpu_redwood cuda_redwood)
 endif()
 
 
