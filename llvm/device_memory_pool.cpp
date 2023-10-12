@@ -7,7 +7,7 @@
 #include "cuda/cuda_device.h"
 #include <sys/mman.h>
 
-namespace taichi::lang {
+namespace redwood::lang {
 
 DeviceMemoryPool::DeviceMemoryPool(bool merge_upon_release)
     : merge_upon_release_(merge_upon_release) {
@@ -112,4 +112,4 @@ DeviceMemoryPool &DeviceMemoryPool::get_instance(bool merge_upon_release) {
   return *cuda_memory_pool;
 }
 
-}  // namespace taichi::lang
+}  // namespace redwood::lang

@@ -111,4 +111,4 @@ HostMemoryPool &HostMemoryPool::get_instance() {
   return *memory_pool;
 }
 
-}  // namespace taichi::lang
+}  // namespace redwood::lang

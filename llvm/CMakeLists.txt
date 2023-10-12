@@ -6,6 +6,9 @@ target_sources(${LLVM_REDWOOD}
     device_memory_pool.cpp
   )
 
+  find_package(CUDA REQUIRED)
+include_directories(${CUDA_INCLUDE_DIRS})
+
 target_include_directories(${LLVM_REDWOOD}
   PRIVATE
     ${PROJECT_SOURCE_DIR}

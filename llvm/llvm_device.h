@@ -4,13 +4,11 @@
 #include "common/device.h" 
 namespace redwood::lang {
 
-class JITModule;
 struct LLVMRuntime;
 
 class LlvmDevice : public Device {
  public:
   struct LlvmRuntimeAllocParams : AllocParams {
-    JITModule *runtime_jit{nullptr};
     LLVMRuntime *runtime{nullptr};
     uint64_t *result_buffer{nullptr};
     bool use_memory_pool{false};

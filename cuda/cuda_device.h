@@ -6,7 +6,7 @@
 #include "cuda/cuda_driver.h"
 #include "llvm/allocator.h"
 #include "cuda_context.h"
-#include "llvm_device.h"
+#include "llvm/llvm_device.h"
 
 namespace redwood::lang {
 namespace cuda {
@@ -23,11 +23,6 @@ class CudaCommandList : public CommandList {
   }
 
   void bind_pipeline(Pipeline *p) noexcept override{RW_NOT_IMPLEMENTED};
-  RedwoodResult bind_shader_resources(ShaderResourceSet *res,
-                                  int set_index = 0) noexcept final{
-      RW_NOT_IMPLEMENTED};
-  RedwoodResult bind_raster_resources(RasterResources *res) noexcept final{
-      RW_NOT_IMPLEMENTED};
   void buffer_barrier(DevicePtr ptr,
                       size_t size) noexcept override{RW_NOT_IMPLEMENTED};
   void buffer_barrier(DeviceAllocation alloc) noexcept override{
@@ -107,7 +102,6 @@ class CudaDevice : public LlvmDevice {
       int num_alloc = 1,
       const std::vector<StreamSemaphore> &wait_sema = {}) noexcept override;
 
-  ShaderResourceSet *create_resource_set() final{RW_NOT_IMPLEMENTED};
 
   RedwoodResult create_pipeline(Pipeline **out_pipeline,
                             const PipelineSourceDesc &src,
@@ -155,4 +149,4 @@ class CudaDevice : public LlvmDevice {
 
 }  // namespace cuda
 
-}  // namespace taichi::lang
+}  // namespace redwood::lang

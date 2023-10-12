@@ -9,15 +9,15 @@
 #if (0)
 // Turn on to check for compatibility
 namespace redwood {
-static_assert(sizeof(CUresult) == sizeof(uint32));
-static_assert(sizeof(CUmem_advise) == sizeof(uint32));
-static_assert(sizeof(CUdevice) == sizeof(uint32));
-static_assert(sizeof(CUdevice_attribute) == sizeof(uint32));
+static_assert(sizeof(CUresult) == sizeof(uint32_t));
+static_assert(sizeof(CUmem_advise) == sizeof(uint32_t));
+static_assert(sizeof(CUdevice) == sizeof(uint32_t));
+static_assert(sizeof(CUdevice_attribute) == sizeof(uint32_t));
 static_assert(sizeof(CUfunction) == sizeof(void *));
 static_assert(sizeof(CUmodule) == sizeof(void *));
 static_assert(sizeof(CUstream) == sizeof(void *));
 static_assert(sizeof(CUevent) == sizeof(void *));
-static_assert(sizeof(CUjit_option) == sizeof(uint32));
+static_assert(sizeof(CUjit_option) == sizeof(uint32_t));
 }  // namespace redwood
 #endif
 
@@ -25,28 +25,28 @@ namespace redwood::lang {
 
 // Driver constants from cuda.h
 
-constexpr uint32 CU_EVENT_DEFAULT = 0x0;
-constexpr uint32 CU_STREAM_DEFAULT = 0x0;
-constexpr uint32 CU_STREAM_NON_BLOCKING = 0x1;
-constexpr uint32 CU_MEM_ATTACH_GLOBAL = 0x1;
-constexpr uint32 CU_MEM_ADVISE_SET_PREFERRED_LOCATION = 3;
-constexpr uint32 CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X = 2;
-constexpr uint32 CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN = 97;
-constexpr uint32 CU_DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR = 106;
-constexpr uint32 CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT = 16;
-constexpr uint32 CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR = 75;
-constexpr uint32 CU_DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED = 115;
-constexpr uint32 CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR = 76;
-constexpr uint32 CU_MEMPOOL_ATTR_RELEASE_THRESHOLD = 4;
-constexpr uint32 CUDA_ERROR_ASSERT = 710;
-constexpr uint32 CU_JIT_MAX_REGISTERS = 0;
-constexpr uint32 CU_POINTER_ATTRIBUTE_MEMORY_TYPE = 2;
-constexpr uint32 CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING = 41;
-constexpr uint32 CUDA_SUCCESS = 0;
-constexpr uint32 CU_MEMORYTYPE_DEVICE = 2;
-constexpr uint32 CU_LIMIT_STACK_SIZE = 0;
+constexpr uint32_t CU_EVENT_DEFAULT = 0x0;
+constexpr uint32_t CU_STREAM_DEFAULT = 0x0;
+constexpr uint32_t CU_STREAM_NON_BLOCKING = 0x1;
+constexpr uint32_t CU_MEM_ATTACH_GLOBAL = 0x1;
+constexpr uint32_t CU_MEM_ADVISE_SET_PREFERRED_LOCATION = 3;
+constexpr uint32_t CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X = 2;
+constexpr uint32_t CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN = 97;
+constexpr uint32_t CU_DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR = 106;
+constexpr uint32_t CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT = 16;
+constexpr uint32_t CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR = 75;
+constexpr uint32_t CU_DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED = 115;
+constexpr uint32_t CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR = 76;
+constexpr uint32_t CU_MEMPOOL_ATTR_RELEASE_THRESHOLD = 4;
+constexpr uint32_t CUDA_ERROR_ASSERT = 710;
+constexpr uint32_t CU_JIT_MAX_REGISTERS = 0;
+constexpr uint32_t CU_POINTER_ATTRIBUTE_MEMORY_TYPE = 2;
+constexpr uint32_t CU_DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING = 41;
+constexpr uint32_t CUDA_SUCCESS = 0;
+constexpr uint32_t CU_MEMORYTYPE_DEVICE = 2;
+constexpr uint32_t CU_LIMIT_STACK_SIZE = 0;
 
-std::string get_cuda_error_message(uint32 err);
+std::string get_cuda_error_message(uint32_t err);
 
 template <typename... Args>
 class CUDADriverFunction {
@@ -59,11 +59,11 @@ class CUDADriverFunction {
     function_ = (func_type *)func_ptr;
   }
 
-  uint32 call(Args... args) {
+  uint32_t call(Args... args) {
     RW_ASSERT(function_ != nullptr);
     RW_ASSERT(driver_lock_ != nullptr);
     std::lock_guard<std::mutex> _(*driver_lock_);
-    return (uint32)function_(args...);
+    return (uint32_t)function_(args...);
   }
 
   void set_names(const std::string &name, const std::string &symbol_name) {
@@ -75,12 +75,12 @@ class CUDADriverFunction {
     driver_lock_ = lock;
   }
 
-  std::string get_error_message(uint32 err) {
+  std::string get_error_message(uint32_t err) {
     return get_cuda_error_message(err) +
            fmt::format(" while calling {} ({})", name_, symbol_name_);
   }
 
-  uint32 call_with_warning(Args... args) {
+  uint32_t call_with_warning(Args... args) {
     auto err = call(args...);
     RW_WARN_IF(err, "{}", get_error_message(err));
     return err;
@@ -123,12 +123,12 @@ class CUDADriver : protected CUDADriverBase {
  public:
 #define PER_CUDA_FUNCTION(name, symbol_name, ...) \
   CUDADriverFunction<__VA_ARGS__> name;
-#include "taichi/rhi/cuda/cuda_driver_functions.inc.h"
+#include "cuda/cuda_driver_functions.inc.h"
 #undef PER_CUDA_FUNCTION
 
-  void (*get_error_name)(uint32, const char **);
+  void (*get_error_name)(uint32_t, const char **);
 
-  void (*get_error_string)(uint32, const char **);
+  void (*get_error_string)(uint32_t, const char **);
 
   void (*driver_get_version)(int *);
 
@@ -167,7 +167,7 @@ class CUSPARSEDriver : protected CUDADriverBase {
 
 #define PER_CUSPARSE_FUNCTION(name, symbol_name, ...) \
   CUDADriverFunction<__VA_ARGS__> name;
-#include "taichi/rhi/cuda/cusparse_functions.inc.h"
+#include "cuda/cusparse_functions.inc.h"
 #undef PER_CUSPARSE_FUNCTION
 
   bool load_cusparse();
@@ -189,7 +189,7 @@ class CUSOLVERDriver : protected CUDADriverBase {
 
 #define PER_CUSOLVER_FUNCTION(name, symbol_name, ...) \
   CUDADriverFunction<__VA_ARGS__> name;
-#include "taichi/rhi/cuda/cusolver_functions.inc.h"
+#include "cuda/cusolver_functions.inc.h"
 #undef PER_CUSOLVER_FUNCTION
 
   bool load_cusolver();
@@ -210,7 +210,7 @@ class CUBLASDriver : protected CUDADriverBase {
 
 #define PER_CUBLAS_FUNCTION(name, symbol_name, ...) \
   CUDADriverFunction<__VA_ARGS__> name;
-#include "taichi/rhi/cuda/cublas_functions.inc.h"
+#include "cuda/cublas_functions.inc.h"
 #undef PER_CUBLAS_FUNCTION
 
   bool load_cublas();

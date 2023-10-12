@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <thread>
 
-//#include "taichi/program/kernel_profiler.h"
+//#include "redwood/program/kernel_profiler.h"
 #include "cuda/cuda_driver.h"
 
 namespace redwood::lang {
@@ -19,7 +19,6 @@ class CUDAContext {
   int compute_capability_;
   std::string mcpu_;
   std::mutex lock_;
-  KernelProfilerBase *profiler_;
   CUDADriver &driver_;
   int max_shared_memory_bytes_;
   bool debug_;

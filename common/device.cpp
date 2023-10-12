@@ -141,4 +141,4 @@ RedwoodResult Device::readback_data(
   return RedwoodResult::success;
 }
 
-}  // namespace taichi::lang
+}  // namespace redwood::lang

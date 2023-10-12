@@ -102,7 +102,7 @@ Logger &Logger::get_instance() {
   // Use the singleton pattern, instead of defining a global variable. This is
   // because I've moved the signal handler registration + pybind11's
   // py::register_exception_translator to
-  // taichi/system/hacked_signal_handler.cpp. We instantiate a global
+  // redwood/system/hacked_signal_handler.cpp. We instantiate a global
   // HackedSIgnalHandler (in the anonymous namespace), whose constructor
   // registers the signal handlers.
 

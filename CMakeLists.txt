@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.16)
 project(my_app LANGUAGES CXX)
 
 add_executable(my_app)
-#add_subdirectory(common)
-#add_subdirectory(llvm)
-#add_subdirectory(cpu)
-#add_subdirectory(cuda)
+add_subdirectory(common)
+add_subdirectory(llvm)
+add_subdirectory(cpu)
+add_subdirectory(cuda)
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/include/*.hpp"
   "${CMAKE_SOURCE_DIR}/common/*.h")
 

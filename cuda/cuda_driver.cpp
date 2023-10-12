@@ -2,11 +2,11 @@
 
 #include "common/dynamic_loader.h"
 #include "cuda/cuda_context.h"
-#include "util/environ_config.h"
+#include "common/environ_config.h"
 
 namespace redwood::lang {
 
-std::string get_cuda_error_message(uint32 err) {
+std::string get_cuda_error_message(uint32_t err) {
   const char *err_name_ptr;
   const char *err_string_ptr;
   CUDADriver::get_instance_without_context().get_error_name(err, &err_name_ptr);
@@ -44,7 +44,7 @@ bool CUDADriverBase::check_lib_loaded(std::string lib_linux,
 #if defined(RW_PLATFORM_LINUX)
   auto lib_name = lib_linux;
 #else
-  static_assert(false, "Taichi CUDA driver supports only Windows and Linux.");
+  static_assert(false, "redwood CUDA driver supports only Windows and Linux.");
 #endif
 
   return DynamicLoader::check_lib_loaded(lib_name);
@@ -117,7 +117,7 @@ CUDADriver::CUDADriver() {
 
   // CUDA versions should >= 10.
   if (version < 10000) {
-    RW_WARN("The Taichi CUDA backend requires at least CUDA 10.0, got v{}.{}.",
+    RW_WARN("The redwood CUDA backend requires at least CUDA 10.0, got v{}.{}.",
             version / 1000, version % 1000 / 10);
     return;
   }
@@ -130,7 +130,7 @@ CUDADriver::CUDADriver() {
   name.set(loader_->load_function(#symbol_name)); \
   name.set_lock(&lock_);                          \
   name.set_names(#name, #symbol_name);
-#include "taichi/rhi/cuda/cuda_driver_functions.inc.h"
+#include "cuda/cuda_driver_functions.inc.h"
 #undef PER_CUDA_FUNCTION
 }
 
@@ -189,7 +189,7 @@ bool CUSPARSEDriver::load_cusparse() {
   name.set(loader_->load_function(#symbol_name));     \
   name.set_lock(&lock_);                              \
   name.set_names(#name, #symbol_name);
-#include "taichi/rhi/cuda/cusparse_functions.inc.h"
+#include "cuda/cusparse_functions.inc.h"
 #undef PER_CUSPARSE_FUNCTION
   return cusparse_loaded_;
 }
@@ -222,7 +222,7 @@ bool CUSOLVERDriver::load_cusolver() {
   name.set(loader_->load_function(#symbol_name));     \
   name.set_lock(&lock_);                              \
   name.set_names(#name, #symbol_name);
-#include "taichi/rhi/cuda/cusolver_functions.inc.h"
+#include "cuda/cusolver_functions.inc.h"
 #undef PER_CUSOLVER_FUNCTION
   return cusolver_loaded_;
 }
@@ -249,9 +249,9 @@ bool CUBLASDriver::load_cublas() {
   name.set(loader_->load_function(#symbol_name));   \
   name.set_lock(&lock_);                            \
   name.set_names(#name, #symbol_name);
-#include "taichi/rhi/cuda/cublas_functions.inc.h"
+#include "cuda/cublas_functions.inc.h"
 #undef PER_CUBLAS_FUNCTION
   return cublas_loaded_;
 }
 
-}  // namespace taichi::lang
+}  // namespace redwood::lang

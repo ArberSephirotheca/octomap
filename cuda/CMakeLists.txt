@@ -1,5 +1,6 @@
 
 set(CUDA_REDWOOD cuda_redwood)
+set(CMAKE_CXX_STANDARD 17)
 add_library(${CUDA_REDWOOD})
 target_sources(${CUDA_REDWOOD}
   PRIVATE
@@ -17,4 +18,4 @@ target_include_directories(${CUDA_REDWOOD}
     ${PROJECT_SOURCE_DIR}/external/spdlog/include
   )
 
-target_link_libraries(${CUDA_REDWOOD} PRIVATE cuda) #interop_rhi)
+target_link_libraries(${CUDA_REDWOOD} PRIVATE  ${CUDA_LIBRARIES}) #interop_rhi)

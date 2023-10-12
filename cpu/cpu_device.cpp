@@ -1,5 +1,5 @@
 #include "cpu/cpu_device.h"
-//#include "taichi/rhi/impl_support.h"
+//#include "redwood/rhi/impl_support.h"
 #include "common/host_memory_pool.h"
 
 
@@ -15,7 +15,7 @@ CpuDevice::AllocInfo CpuDevice::get_alloc_info(const DeviceAllocation handle) {
 CpuDevice::CpuDevice() {
 }
 
-RhiResult CpuDevice::allocate_memory(const AllocParams &params,
+RedwoodResult CpuDevice::allocate_memory(const AllocParams &params,
                                      DeviceAllocation *out_devalloc) {
   AllocInfo info;
   info.size = params.size;
@@ -28,7 +28,7 @@ RhiResult CpuDevice::allocate_memory(const AllocParams &params,
         params.size, HostMemoryPool::page_size, true /*exclusive*/);
 
     if (info.ptr == nullptr) {
-      return RhiResult::out_of_memory;
+      return RedwoodResult::out_of_memory;
     }
   }
   *out_devalloc = DeviceAllocation{};
@@ -37,26 +37,27 @@ RhiResult CpuDevice::allocate_memory(const AllocParams &params,
 
   allocations_.push_back(info);
 
-  return RhiResult::success;
+  return RedwoodResult::success;
 }
 
 DeviceAllocation CpuDevice::allocate_memory_runtime(
     const LlvmRuntimeAllocParams &params) {
   DeviceAllocation alloc;
-  RhiResult res = allocate_memory(params, &alloc);
-  RHI_ASSERT(res == RhiResult::success &&
+  RedwoodResult res = allocate_memory(params, &alloc);
+  RW_ASSERT(res == RedwoodResult::success &&
              "Failed to allocate memory for runtime");
   return alloc;
 }
 
+/*
 uint64_t *CpuDevice::allocate_llvm_runtime_memory_jit(
     const LlvmRuntimeAllocParams &params) {
   params.runtime_jit->call<void *, std::size_t, std::size_t>(
       "runtime_memory_allocate_aligned", params.runtime, params.size,
-      taichi_page_size, params.result_buffer);
+      redwood_page_size, params.result_buffer);
   return reinterpret_cast<uint64_t *>(params.result_buffer[0]);
 }
-
+*/
 void CpuDevice::dealloc_memory(DeviceAllocation handle) {
   validate_device_alloc(handle);
   AllocInfo &info = allocations_[handle.alloc_id];
@@ -72,66 +73,66 @@ void CpuDevice::dealloc_memory(DeviceAllocation handle) {
   }
 }
 
-RhiResult CpuDevice::upload_data(DevicePtr *device_ptr,
+RedwoodResult CpuDevice::upload_data(DevicePtr *device_ptr,
                                  const void **data,
                                  size_t *size,
                                  int num_alloc) noexcept {
   if (!device_ptr || !data || !size) {
-    return RhiResult::invalid_usage;
+    return RedwoodResult::invalid_usage;
   }
 
   for (int i = 0; i < num_alloc; i++) {
     if (device_ptr[i].device != this || !data[i]) {
-      return RhiResult::invalid_usage;
+      return RedwoodResult::invalid_usage;
     }
 
     AllocInfo &info = allocations_[device_ptr[i].alloc_id];
     memcpy((uint8_t *)info.ptr + device_ptr[i].offset, data[i], size[i]);
   }
 
-  return RhiResult::success;
+  return RedwoodResult::success;
 }
 
-RhiResult CpuDevice::readback_data(
+RedwoodResult CpuDevice::readback_data(
     DevicePtr *device_ptr,
     void **data,
     size_t *size,
     int num_alloc,
     const std::vector<StreamSemaphore> &wait_sema) noexcept {
   if (!device_ptr || !data || !size) {
-    return RhiResult::invalid_usage;
+    return RedwoodResult::invalid_usage;
   }
 
   for (int i = 0; i < num_alloc; i++) {
     if (device_ptr[i].device != this || !data[i]) {
-      return RhiResult::invalid_usage;
+      return RedwoodResult::invalid_usage;
     }
 
     AllocInfo &info = allocations_[device_ptr[i].alloc_id];
     memcpy(data[i], (uint8_t *)info.ptr + device_ptr[i].offset, size[i]);
   }
 
-  return RhiResult::success;
+  return RedwoodResult::success;
 }
 
-RhiResult CpuDevice::map_range(DevicePtr ptr,
+RedwoodResult CpuDevice::map_range(DevicePtr ptr,
                                uint64_t size,
                                void **mapped_ptr) {
   AllocInfo &info = allocations_[ptr.alloc_id];
   if (info.ptr == nullptr) {
-    return RhiResult::error;
+    return RedwoodResult::error;
   }
   *mapped_ptr = (uint8_t *)info.ptr + ptr.offset;
-  return RhiResult::success;
+  return RedwoodResult::success;
 }
 
-RhiResult CpuDevice::map(DeviceAllocation alloc, void **mapped_ptr) {
+RedwoodResult CpuDevice::map(DeviceAllocation alloc, void **mapped_ptr) {
   AllocInfo &info = allocations_[alloc.alloc_id];
   if (info.ptr == nullptr) {
-    return RhiResult::error;
+    return RedwoodResult::error;
   }
   *mapped_ptr = info.ptr;
-  return RhiResult::success;
+  return RedwoodResult::success;
 }
 
 void CpuDevice::unmap(DeviceAllocation alloc) {

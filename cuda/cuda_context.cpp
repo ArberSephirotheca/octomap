@@ -4,15 +4,15 @@
 #include <unordered_map>
 #include <mutex>
 
-//#include "taichi/system/threading.h"
+//#include "redwood/system/threading.h"
 #include "cuda/cuda_driver.h"
 //#include "cuda/cuda_profiler.h"
-//#include "taichi/util/offline_cache.h"
+//#include "redwood/util/offline_cache.h"
 
 namespace redwood::lang {
 
 CUDAContext::CUDAContext()
-    : profiler_(nullptr), driver_(CUDADriver::get_instance_without_context()) {
+    : driver_(CUDADriver::get_instance_without_context()) {
   // CUDA initialization
   dev_count_ = 0;
   driver_.init(0);
@@ -54,7 +54,7 @@ CUDAContext::CUDAContext()
     // Let the memory pool have 128MB
     // TODO: make this configurable after we let the memory pool replace the
     // preallocated memory
-    constexpr uint64 kMemPoolReleaseThreshold = 1048576 * 128;
+    constexpr uint64_t kMemPoolReleaseThreshold = 1048576 * 128;
     driver_.mem_pool_set_attribute(default_mem_pool,
                                    CU_MEMPOOL_ATTR_RELEASE_THRESHOLD,
                                    (void *)&kMemPoolReleaseThreshold);
@@ -115,7 +115,7 @@ void CUDAContext::launch(void *func,
   // then profiler->start and profiler->stop mismatch.
   // TODO: should we keep the handle?
 
-  KernelProfilerBase::TaskHandle task_handle;
+  //KernelProfilerBase::TaskHandle task_handle;
   // Kernel launch
   /*
   if (profiler_) {
@@ -186,4 +186,4 @@ CUDAContext &CUDAContext::get_instance() {
   return *context;
 }
 
-}  // namespace taichi::lang
+}  // namespace redwood::lang

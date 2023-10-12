@@ -38,4 +38,4 @@ class HostMemoryPool {
   friend class UnifiedAllocator;
 };
 
-}  // namespace taichi::lang
+}  // namespace redwood::lang

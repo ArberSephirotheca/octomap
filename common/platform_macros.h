@@ -1,9 +1,9 @@
 #pragma once
 
 // TO KEEP THE INCLUDE DEPENDENCY CLEAN, PLEASE DO NOT INCLUDE ANY OTHER
-// TAICHI HEADERS INTO THIS ONE.
+// redwood HEADERS INTO THIS ONE.
 //
-// TODO(#2196): Once we can slim down "taichi/common/core.h", consider moving
+// TODO(#2196): Once we can slim down "redwood/common/core.h", consider moving
 // the contents back to core.h and delete this file.
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS

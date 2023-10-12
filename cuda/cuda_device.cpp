@@ -49,7 +49,7 @@ RedwoodResult CudaDevice::allocate_memory(const AllocParams &params,
 DeviceAllocation CudaDevice::allocate_memory_runtime(
     const LlvmRuntimeAllocParams &params) {
   AllocInfo info;
-  info.size = taichi::iroundup(params.size, taichi_page_size);
+  info.size = redwood::iroundup(params.size, redwood_page_size);
   if (info.size == 0) {
     info.ptr = nullptr;
   } else if (params.use_memory_pool) {
@@ -76,17 +76,19 @@ DeviceAllocation CudaDevice::allocate_memory_runtime(
   return alloc;
 }
 
+/*
 uint64_t *CudaDevice::allocate_llvm_runtime_memory_jit(
     const LlvmRuntimeAllocParams &params) {
   params.runtime_jit->call<void *, std::size_t, std::size_t>(
       "runtime_memory_allocate_aligned", params.runtime, params.size,
-      taichi_page_size, params.result_buffer);
+      redwood_page_size, params.result_buffer);
   CUDADriver::get_instance().stream_synchronize(nullptr);
   uint64 *ret{nullptr};
   CUDADriver::get_instance().memcpy_device_to_host(&ret, params.result_buffer,
                                                    sizeof(uint64));
   return ret;
 }
+*/
 
 void CudaDevice::dealloc_memory(DeviceAllocation handle) {
   // After reset, all allocations are invalid
@@ -200,4 +202,4 @@ DeviceAllocation CudaDevice::import_memory(void *ptr, size_t size) {
 }
 
 }  // namespace cuda
-}  // namespace taichi::lang
+}  // namespace redwood::lang

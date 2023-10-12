@@ -8,7 +8,7 @@
 #include <memory>
 #include <thread>
 
-namespace taichi::lang {
+namespace redwood::lang {
 
 // A memory pool that runs on the host
 
@@ -39,4 +39,4 @@ class  DeviceMemoryPool {
   bool merge_upon_release_ = true;
 };
 
-}  // namespace taichi::lang
+}  // namespace redwood::lang
