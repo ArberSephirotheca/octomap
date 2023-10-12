@@ -52,8 +52,8 @@ endif()
 
 # Link OpenMP library
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS}) 
-    #common_redwood llvm_redwood cpu_redwood cuda_redwood)
+    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS}
+    common_redwood llvm_redwood cpu_redwood cuda_redwood)
 endif()
 
 

@@ -86,10 +86,10 @@ class CudaDevice : public LlvmDevice {
   DeviceAllocation allocate_memory_runtime(
       const LlvmRuntimeAllocParams &params) override;
   void dealloc_memory(DeviceAllocation handle) override;
-
+  /*
   uint64_t *allocate_llvm_runtime_memory_jit(
       const LlvmRuntimeAllocParams &params) override;
-
+  */
   RedwoodResult upload_data(DevicePtr *device_ptr,
                         const void **data,
                         size_t *size,

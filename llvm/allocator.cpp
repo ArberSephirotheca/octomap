@@ -51,8 +51,10 @@ uint64_t *CachingAllocator::allocate(
     ptr_map_.erase(it_blk->second);
 
   } else {
+    /*
     ret = reinterpret_cast<uint64_t *>(
         device->allocate_llvm_runtime_memory_jit(params));
+        */
   }
   return ret;
 }

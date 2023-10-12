@@ -41,11 +41,12 @@ class LlvmDevice : public Device {
   virtual void clear() {
     RW_NOT_IMPLEMENTED;
   }
-
+  /*
   virtual uint64_t *allocate_llvm_runtime_memory_jit(
       const LlvmRuntimeAllocParams &params) {
     RW_NOT_IMPLEMENTED;
   }
+  */
 };
 
 }  

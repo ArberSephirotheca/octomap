@@ -17,7 +17,7 @@
 #include "include/morton_util.hpp"
 #include "include/octree.hpp"
 #include "include/util.hpp"
-#include "common/host_memory_pool.h"
+#include "cpu/cpu_device.h"
 // #include "occupancy_map.hpp"
 using pcl_ptr = pcl::PointCloud<pcl::PointXYZ>::Ptr;
 // const int num_threads = std::thread::hardware_concurrency();
@@ -470,6 +470,9 @@ void test2()
 int main(int argc, char **argv)
 {
   //test2();
+  redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
+  auto [buf, res] = cpu_deivce.allocate_memory_unique(redwood::lang::Device::AllocParams{1024, true, true});
+  RW_ASSERT(res == redwood::lang::RedwoodResult::success);
   float compute_time;
   float sort_time;
   float duplicate_time;
