@@ -89,6 +89,8 @@
         "cfenv": "cpp",
         "typeindex": "cpp",
         "core": "cpp",
-        "*.txx": "cpp"
+        "*.txx": "cpp",
+        "span": "cpp",
+        "format": "cpp"
     }
 }

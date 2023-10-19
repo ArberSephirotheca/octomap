@@ -19,6 +19,7 @@
 #include "include/octree.hpp"
 #include "include/util.hpp"
 #include "cpu/cpu_device.h"
+#include "include/traditional_octree.hpp"
 // #include "occupancy_map.hpp"
 using pcl_ptr = pcl::PointCloud<pcl::PointXYZ>::Ptr;
 // const int num_threads = std::thread::hardware_concurrency();
@@ -469,8 +470,24 @@ void test2()
 }
 */
 
+
+void test_allocator_octree()
+{
+    BoundingBox worldBounds(Point(0, 0, 0), Point(10, 10, 10));
+      redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
+    Octree* octree = new Octree(worldBounds, &cpu_deivce);
+
+    // Insert some points into the octree
+    octree->insert(Point(1, 2, 3));
+    octree->insert(Point(4, 5, 6));
+    octree->insert(Point(7, 8, 9));
+    delete octree;
+    std::cout<<"done"<<std::endl;
+}
+
 int main(int argc, char **argv)
 {
+  test_allocator_octree();
   //test2();
   float compute_time;
   float sort_time;
@@ -604,7 +621,6 @@ int main(int argc, char **argv)
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
   std::cout << "Time taken by allocating and mapping: " << duration.count() << " microsecond" << std::endl;
-
 
   brt_time = TimeTask("Build Binary Radix Tree", [&]
                       { brt::create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), brt_nodes, num_threads); });
