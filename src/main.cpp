@@ -595,9 +595,11 @@ int main(int argc, char **argv)
   redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
   auto res= cpu_deivce.allocate_memory(redwood::lang::Device::AllocParams{num_brt_nodes*(sizeof(brt::InnerNodes)), true, true}, &brt_buf);
   RW_ASSERT(res == redwood::lang::RedwoodResult::success);
-  
+  void* mappedData;
+  res =  brt_buf.device->map(brt_buf, &mappedData);
+  brt::InnerNodes* brt_nodes = static_cast<brt::InnerNodes*>(mappedData);
   brt_time = TimeTask("Build Binary Radix Tree", [&]
-                      { brt::create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), &brt_buf, num_threads); });
+                      { brt::create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), brt_nodes, num_threads); });
   
   if (print)
   {
@@ -619,7 +621,7 @@ int main(int argc, char **argv)
                         {
     // Copy a "1" to the first element to account for the root
     edge_count[0] = 1;
-    oct::CalculateEdgeCountThreaded(edge_count.data(), inners.data(), num_brt_nodes, num_threads); });
+    oct::CalculateEdgeCountThreaded(edge_count.data(), brt_nodes, num_brt_nodes, num_threads); });
 
   // [Step 6.1] Prefix sum
 
@@ -644,12 +646,12 @@ int main(int argc, char **argv)
   // [Step 7] Create unlinked BH nodes
   make_nodes_time = TimeTask("Make Unlinked BH nodes", [&]
                              { oct::MakeNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
-                                                      morton_keys.data(), inners.data(), num_brt_nodes, num_threads, range); });
+                                                      morton_keys.data(), brt_nodes, num_brt_nodes, num_threads, range); });
 
   // [Step 8] Linking BH nodes
   link_nodes_time = TimeTask("Link BH nodes", [&]
                              { oct::LinkNodesThreaded(bh_nodes.data(), oc_node_offsets.data(), edge_count.data(),
-                                                      morton_keys.data(), inners.data(), num_brt_nodes, num_threads); });
+                                                      morton_keys.data(), brt_nodes, num_brt_nodes, num_threads); });
 
   oct::Octree octree = oct::Octree(root_prefix, bh_nodes, root_level, morton_keys);
   auto oct_idx = octree.search(morton_keys[800], root_prefix, root_level * 3, 0);

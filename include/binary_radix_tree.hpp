@@ -77,7 +77,7 @@ void create_binary_radix_tree(int key_num, const Code_t* morton_keys,
                           InnerNodes* brt_nodes);
 */
 void create_binary_radix_tree_threaded(int key_num, const Code_t* morton_keys,
-                          redwood::lang::DeviceAllocation* brt_nodes, int thread_number);
+                          brt::InnerNodes* inner, int thread_number);
 namespace node {
 
 template <typename T>

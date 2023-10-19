@@ -9,7 +9,7 @@
 namespace brt {
 
 void process_internal_node(const int key_num, const Code_t* morton_keys,
-                           redwood::lang::DeviceAllocation* buf, int i) {
+                           brt::InnerNodes* brt_nodes, int i) {
     const auto direction{
         math::sign<int>(Delta(morton_keys, i, i + 1) -
                         DeltaSafe(key_num, morton_keys, i, i - 1))};
@@ -58,33 +58,26 @@ void process_internal_node(const int key_num, const Code_t* morton_keys,
                         ? node::make_leaf<int>(split + 1)
                         : node::make_internal<int>(split + 1)};
     
-    void* mappedData;
-    auto result =  buf->device->map(*buf, &mappedData);
-    if (result == redwood::lang::RedwoodResult::success) {
+
     // 'mappedData' now contains the pointer to the mapped data.
     // You can access the 'brt::InnerNodes' data using 'dataPtr' or 'mappedData'.
     // Example:
-      brt::InnerNodes* brt_nodes = static_cast<brt::InnerNodes*>(mappedData);
       brt_nodes[i].delta_node = delta_node;
       brt_nodes[i].left = left;
       brt_nodes[i].right = right;
 
       if (math::min<int>(i, j) != split) brt_nodes[left].parent = i;
       if (math::max<int>(i, j) != split + 1) brt_nodes[right].parent = i;
-    }else{
-      std::cout<<"fail to map"<<std::endl;
-      exit(1);
-    }
   
 }
 void create_binary_radix_tree_threaded(const int key_num, const Code_t* morton_keys,
-                           redwood::lang::DeviceAllocation* buf, int thread_number) {
+                           brt::InnerNodes* inner, int thread_number) {
 	// compute the number of elements a thread will cover
 	const auto elements_per_thread = math::divide_ceil<int>(key_num, thread_number);
 	
-	const auto worker_fn = [key_num, &morton_keys, &buf, elements_per_thread](int i) {
+	const auto worker_fn = [key_num, &morton_keys, &inner, elements_per_thread](int i) {
 		for (int t = i * elements_per_thread; t < math::min(key_num - 1, (i + 1)*elements_per_thread); ++t)
-			process_internal_node(key_num, morton_keys, buf, t);
+			process_internal_node(key_num, morton_keys, inner, t);
 	};
 
 	// Create the threads
