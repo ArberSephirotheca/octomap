@@ -252,7 +252,7 @@ void test()
 
 */
 
-
+/*
 void test2()
 {
   float update_time;
@@ -466,13 +466,11 @@ void test2()
     }
   }
 }
+*/
 
 int main(int argc, char **argv)
 {
   //test2();
-  redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
-  auto [buf, res] = cpu_deivce.allocate_memory_unique(redwood::lang::Device::AllocParams{1024, true, true});
-  RW_ASSERT(res == redwood::lang::RedwoodResult::success);
   float compute_time;
   float sort_time;
   float duplicate_time;
@@ -528,6 +526,7 @@ int main(int argc, char **argv)
   // constexpr int input_size = 1024;
   constexpr int input_size = 10000000;
   std::vector<Eigen::Vector3f> inputs(input_size);
+
   std::generate(inputs.begin(), inputs.end(), [&]
                 {
     const auto x = dis(gen) * 1024.0f;
@@ -592,10 +591,14 @@ int main(int argc, char **argv)
   // [Step 5] Build Binary Radix Tree
   const auto num_brt_nodes = morton_keys.size() - 1;
   std::vector<brt::InnerNodes> inners(num_brt_nodes);
-
+  redwood::lang::DeviceAllocation brt_buf;
+  redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
+  auto res= cpu_deivce.allocate_memory(redwood::lang::Device::AllocParams{num_brt_nodes*(sizeof(brt::InnerNodes)), true, true}, &brt_buf);
+  RW_ASSERT(res == redwood::lang::RedwoodResult::success);
+  
   brt_time = TimeTask("Build Binary Radix Tree", [&]
-                      { create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), inners.data(), num_threads); });
-
+                      { brt::create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), &brt_buf, num_threads); });
+  
   if (print)
   {
     for (unsigned int i = 0; i < num_brt_nodes; ++i)
