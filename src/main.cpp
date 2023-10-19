@@ -7,6 +7,7 @@
 #include <cxxopts.hpp>
 #include <iostream>
 #include <numeric>
+#include <chrono>
 #include <mutex>
 #include <random>
 #include <omp.h>
@@ -590,7 +591,9 @@ int main(int argc, char **argv)
 
   // [Step 5] Build Binary Radix Tree
   const auto num_brt_nodes = morton_keys.size() - 1;
-  std::vector<brt::InnerNodes> inners(num_brt_nodes);
+  //std::vector<brt::InnerNodes> inners(num_brt_nodes);
+  std::cout<<"allocating "<< num_brt_nodes*(sizeof(brt::InnerNodes))<< " bytes"<<std::endl;
+  auto start = std::chrono::high_resolution_clock::now();
   redwood::lang::DeviceAllocation brt_buf;
   redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
   auto res= cpu_deivce.allocate_memory(redwood::lang::Device::AllocParams{num_brt_nodes*(sizeof(brt::InnerNodes)), true, true}, &brt_buf);
@@ -598,6 +601,11 @@ int main(int argc, char **argv)
   void* mappedData;
   res =  brt_buf.device->map(brt_buf, &mappedData);
   brt::InnerNodes* brt_nodes = static_cast<brt::InnerNodes*>(mappedData);
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  std::cout << "Time taken by allocating and mapping: " << duration.count() << " microsecond" << std::endl;
+
+
   brt_time = TimeTask("Build Binary Radix Tree", [&]
                       { brt::create_binary_radix_tree_threaded(morton_keys.size(), morton_keys.data(), brt_nodes, num_threads); });
   
@@ -606,10 +614,10 @@ int main(int argc, char **argv)
     for (unsigned int i = 0; i < num_brt_nodes; ++i)
     {
       std::cout << "Node " << i << "\n";
-      std::cout << "\tdelta_node: " << inners[i].delta_node << "\n";
-      std::cout << "\tleft: " << inners[i].left << "\n";
-      std::cout << "\tright: " << inners[i].right << "\n";
-      std::cout << "\tparent: " << inners[i].parent << "\n";
+      std::cout << "\tdelta_node: " << brt_nodes[i].delta_node << "\n";
+      std::cout << "\tleft: " << brt_nodes[i].left << "\n";
+      std::cout << "\tright: " << brt_nodes[i].right << "\n";
+      std::cout << "\tparent: " << brt_nodes[i].parent << "\n";
       std::cout << "\n";
     }
   }
@@ -634,7 +642,7 @@ int main(int argc, char **argv)
 
   // [Step 6.2] Allocate BH nodes
   const int num_oc_nodes = oc_node_offsets.back();
-  const int root_level = inners[0].delta_node / 3;
+  const int root_level = brt_nodes[0].delta_node / 3;
   const Code_t root_prefix = morton_keys[0] >> (kCodeLen - (3 * root_level));
   std::vector<oct::OctNode<float>> bh_nodes(num_oc_nodes);
 
