@@ -19,7 +19,9 @@
 #include "include/octree.hpp"
 #include "include/util.hpp"
 #include "cpu/cpu_device.h"
-#include "include/traditional_octree.hpp"
+#include "cuda/cuda_device.h"
+#include "include/traditional_octree_cuda.hpp"
+
 // #include "occupancy_map.hpp"
 using pcl_ptr = pcl::PointCloud<pcl::PointXYZ>::Ptr;
 // const int num_threads = std::thread::hardware_concurrency();
@@ -477,17 +479,84 @@ void test_allocator_octree()
       redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
     Octree* octree = new Octree(worldBounds, &cpu_deivce);
 
-    // Insert some points into the octree
-    octree->insert(Point(1, 2, 3));
-    octree->insert(Point(4, 5, 6));
-    octree->insert(Point(7, 8, 9));
-    delete octree;
-    std::cout<<"done"<<std::endl;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    // Create uniform real distributions for x, y, and z
+    std::uniform_real_distribution<double> xDist(0, 10);
+    std::uniform_real_distribution<double> yDist(0, 10);
+    std::uniform_real_distribution<double> zDist(0, 10);
+
+    // Number of points to generate
+    const int numPoints = 10000000;
+
+  auto start = std::chrono::high_resolution_clock::now();
+
+    // Create a vector to store the generated points
+    std::vector<Point> points;
+    points.reserve(numPoints);
+
+    // Generate the random points
+    for (int i = 0; i < numPoints; ++i) {
+        double x = xDist(gen);
+        double y = yDist(gen);
+        double z = zDist(gen);
+        points.emplace_back(x, y, z);
+    }
+
+    for(const auto& point : points){
+      octree->insert(point);
+    }
+     delete octree;
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  std::cout << "Time taken by processing octree in cpu: " << duration.count() << " microsecond" << std::endl;
+}
+
+
+void test_allocator_octree_cuda()
+{
+    BoundingBox worldBounds(Point(0, 0, 0), Point(10, 10, 10));
+    redwood::lang::cuda::CudaDevice cuda_device= redwood::lang::cuda::CudaDevice();
+    OctreeCuda* octree = new OctreeCuda(worldBounds, &cuda_device);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    // Create uniform real distributions for x, y, and z
+    std::uniform_real_distribution<double> xDist(0, 10);
+    std::uniform_real_distribution<double> yDist(0, 10);
+    std::uniform_real_distribution<double> zDist(0, 10);
+
+    // Number of points to generate
+    const int numPoints = 10000000;
+
+  auto start = std::chrono::high_resolution_clock::now();
+
+    // Create a vector to store the generated points
+    std::vector<Point> points;
+    points.reserve(numPoints);
+
+    // Generate the random points
+    for (int i = 0; i < numPoints; ++i) {
+        double x = xDist(gen);
+        double y = yDist(gen);
+        double z = zDist(gen);
+        points.emplace_back(x, y, z);
+    }
+
+    for(const auto& point : points){
+      octree->insert(point);
+    }
+     delete octree;
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  std::cout << "Time taken by processing octree in cuda: " << duration.count() << " microsecond" << std::endl;
 }
 
 int main(int argc, char **argv)
 {
   test_allocator_octree();
+  test_allocator_octree_cuda();
   //test2();
   float compute_time;
   float sort_time;

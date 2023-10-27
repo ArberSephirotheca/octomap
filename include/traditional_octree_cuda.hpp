@@ -1,62 +1,27 @@
 // Define a basic point structure
 #include <iostream>
 #include <vector>
-#include "cpu/cpu_device.h"
-struct Point {
-    float x, y, z;
-    Point(float x, float y, float z) : x(x), y(y), z(z) {}
-};
-
-// Define a bounding box structure
-struct BoundingBox {
-    Point min;
-    Point max;
-
-    BoundingBox(const Point& min, const Point& max) : min(min), max(max) {}
-
-    bool contains(const Point& point) const {
-        return point.x >= min.x && point.x <= max.x &&
-               point.y >= min.y && point.y <= max.y &&
-               point.z >= min.z && point.z <= max.z;
-    }
-};
-
-// Octree Node
-class OctreeNode {
-public:
-    BoundingBox bounds;
-    std::vector<Point> points;
-    OctreeNode* children[8]; // 8 children
-
-    OctreeNode(const BoundingBox& bounds) : bounds(bounds) {
-        for (int i = 0; i < 8; ++i) {
-            children[i] = nullptr;
-        }
-    }
-    bool isLeaf() const {
-        return points.size() > 0;
-    }
-};
+#include "cuda/cuda_device.h"
+#include "traditional_octree.hpp"
 
 // Octree class
-class Octree {
+class OctreeCuda {
 public:
-    redwood::lang::cpu::CpuDevice* _device;  
+    redwood::lang::cuda::CudaDevice* _device;  
     OctreeNode* _root;
     std::vector<redwood::lang::DeviceAllocation> buffers;
 
-    Octree(const BoundingBox& bounds, redwood::lang::cpu::CpuDevice* device) {
+    OctreeCuda(const BoundingBox& bounds, redwood::lang::cuda::CudaDevice* device) {
         _device = device;
         redwood::lang::DeviceAllocation root_buf;
-        _device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNode)), true, true}, &root_buf);
+        _device->allocate_memory(redwood::lang::Device::AllocParams{sizeof(OctreeNode)}, &root_buf);
         void* mappedData;
         buffers.push_back(root_buf);
         root_buf.device->map(root_buf, &mappedData);
         _root = static_cast<OctreeNode*>(mappedData);
-        std::cout<<"done intialize"<<std::endl;
     }
 
-    ~Octree() {
+    ~OctreeCuda() {
         for(int i = 0; i < buffers.size(); ++i){
             _device->dealloc_memory(buffers[i]);
         }
@@ -78,7 +43,7 @@ public:
             }
         } else {
             redwood::lang::DeviceAllocation child_buff;
-            _device->allocate_memory(redwood::lang::Device::AllocParams{sizeof(OctreeNode), true, true}, &child_buff);
+            _device->allocate_memory(redwood::lang::Device::AllocParams{sizeof(OctreeNode)}, &child_buff);
             void* mappedData;
             child_buff.device->map(child_buff, &mappedData);
             buffers.push_back(child_buff);
@@ -97,7 +62,7 @@ public:
     void subdivide(OctreeNode* node) {
         const BoundingBox& currentBounds = node->bounds;
         redwood::lang::DeviceAllocation child_buff;
-        _device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNode)*8), true, true}, &child_buff);
+         _device->allocate_memory(redwood::lang::Device::AllocParams{sizeof(OctreeNode)*8}, &child_buff);
         void* mappedData;
         child_buff.device->map(child_buff, &mappedData);
         buffers.push_back(child_buff);

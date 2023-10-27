@@ -1,6 +1,6 @@
 #include "cuda/cuda_device.h"
 #include "llvm/device_memory_pool.h"
-
+#include "llvm/allocator.h"
 
 namespace redwood::lang {
 
