@@ -1,4 +1,5 @@
 // Define a basic point structure
+#pragma once
 #include <iostream>
 #include <vector>
 #include "cuda/cuda_device.h"

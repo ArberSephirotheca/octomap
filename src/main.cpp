@@ -20,7 +20,9 @@
 #include "include/util.hpp"
 #include "cpu/cpu_device.h"
 #include "cuda/cuda_device.h"
-#include "include/traditional_octree_cuda.hpp"
+//#include "include/traditional_octree_cuda.hpp"
+#include "include/traditional_octree_cpu.hpp"
+#include "include/traditional_octree.hpp"
 
 // #include "occupancy_map.hpp"
 using pcl_ptr = pcl::PointCloud<pcl::PointXYZ>::Ptr;
@@ -475,9 +477,48 @@ void test2()
 
 void test_allocator_octree()
 {
-    BoundingBox worldBounds(Point(0, 0, 0), Point(10, 10, 10));
+    Octree octree = Octree(0,0,0,10,10,10);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    // Create uniform real distributions for x, y, and z
+    std::uniform_real_distribution<float> xDist(0, 10);
+    std::uniform_real_distribution<float> yDist(0, 10);
+    std::uniform_real_distribution<float> zDist(0, 10);
+
+    // Number of points to generate
+    const int numPoints = 10000;
+
+  auto start = std::chrono::high_resolution_clock::now();
+  
+    // Create a vector to store the generated points
+    std::vector<Point> points;
+    points.reserve(numPoints);
+
+    // Generate the random points
+    for (int i = 0; i < numPoints; ++i) {
+        float x = xDist(gen);
+        float y = yDist(gen);
+        float z = zDist(gen);
+        points.emplace_back(x, y, z);
+    }
+    
+
+    for(const auto& point : points){
+      octree.insert(point.x, point.y, point.z);
+    }
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "Time taken by processing octree without allocator: " << duration.count() << " milliseconds" << std::endl;
+}
+
+
+
+void test_allocator_octree_cpu()
+{
       redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
-    Octree* octree = new Octree(worldBounds, &cpu_deivce);
+    Octree_CPU* octree = new Octree_CPU(0, 0, 0, 10, 10, 10, &cpu_deivce);
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -488,7 +529,7 @@ void test_allocator_octree()
     std::uniform_real_distribution<double> zDist(0, 10);
 
     // Number of points to generate
-    const int numPoints = 10000000;
+    const int numPoints = 100000;
 
   auto start = std::chrono::high_resolution_clock::now();
 
@@ -505,15 +546,15 @@ void test_allocator_octree()
     }
 
     for(const auto& point : points){
-      octree->insert(point);
+      octree->insert(point.x, point.y, point.z);
     }
      delete octree;
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-  std::cout << "Time taken by processing octree in cpu: " << duration.count() << " microsecond" << std::endl;
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "Time taken by processing octree in cpu: " << duration.count() << " milliseconds" << std::endl;
 }
 
-
+/*
 void test_allocator_octree_cuda()
 {
     BoundingBox worldBounds(Point(0, 0, 0), Point(10, 10, 10));
@@ -549,16 +590,13 @@ void test_allocator_octree_cuda()
     }
      delete octree;
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-  std::cout << "Time taken by processing octree in cuda: " << duration.count() << " microsecond" << std::endl;
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "Time taken by processing octree in cuda: " << duration.count() << " milliseconds" << std::endl;
 }
+*/
 
-int main(int argc, char **argv)
-{
-  test_allocator_octree();
-  test_allocator_octree_cuda();
-  //test2();
-  float compute_time;
+void actual_work(int argc, char **argv){
+ float compute_time;
   float sort_time;
   float duplicate_time;
   float brt_time;
@@ -587,7 +625,7 @@ int main(int argc, char **argv)
   if (result.count("help"))
   {
     std::cout << options.help() << std::endl;
-    return EXIT_SUCCESS;
+    return;
   }
 
   if (!result.count("file"))
@@ -595,7 +633,7 @@ int main(int argc, char **argv)
     std::cerr
         << "requires an input file (\"../../data/1m_nn_uniform_4f.dat\")\n";
     std::cout << options.help() << std::endl;
-    return EXIT_FAILURE;
+    return;
   }
 
   const auto data_file = result["file"].as<std::string>();
@@ -793,6 +831,14 @@ int main(int argc, char **argv)
   std::cout << "Prefix Sum Time: " << prefix_time << " (" << prefix_time / total_time * 100 << "%)" << std::endl;
   std::cout << "Make Unlinked BH nodes Time: " << make_nodes_time << " (" << make_nodes_time / total_time * 100 << "%)" << std::endl;
   std::cout << "Link BH nodes Time: " << link_nodes_time << " (" << link_nodes_time / total_time * 100 << "%)" << std::endl;
+}
+int main(int argc, char **argv)
+{
+  test_allocator_octree_cpu();
+  //test_allocator_octree_cuda();
+  test_allocator_octree();
+  //actual_work(argc, argv);
+
 
   return EXIT_SUCCESS;
 }

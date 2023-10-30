@@ -1,148 +1,329 @@
-// Define a basic point structure
-#include <iostream>
-#include <vector>
-#include "cpu/cpu_device.h"
-struct Point {
-    float x, y, z;
-    Point(float x, float y, float z) : x(x), y(y), z(z) {}
-};
+#include "traditional_octree_base.hpp"
+using namespace std;
 
-// Define a bounding box structure
-struct BoundingBox {
-    Point min;
-    Point max;
-
-    BoundingBox(const Point& min, const Point& max) : min(min), max(max) {}
-
-    bool contains(const Point& point) const {
-        return point.x >= min.x && point.x <= max.x &&
-               point.y >= min.y && point.y <= max.y &&
-               point.z >= min.z && point.z <= max.z;
-    }
-};
-
-// Octree Node
-class OctreeNode {
-public:
-    BoundingBox bounds;
-    std::vector<Point> points;
-    OctreeNode* children[8]; // 8 children
-
-    OctreeNode(const BoundingBox& bounds) : bounds(bounds) {
-        for (int i = 0; i < 8; ++i) {
-            children[i] = nullptr;
-        }
-    }
-    bool isLeaf() const {
-        return points.size() > 0;
-    }
-};
 
 // Octree class
-class Octree {
+class OctreeNode : public OctreeNodeBase
+{
+
+    public:
+    Point* point;
+ 
+    // Represent the boundary of the cube
+    OctreeNode* children[8];
+    Point *topLeftFront, *bottomRightBack;
+    OctreeNode()
+    {
+        point = new Point();
+    }
+    // Constructor with three arguments
+    OctreeNode(float x, float y, float z)
+    {
+        // To declare point node
+        point = new Point(x, y, z);
+    }
+    OctreeNode(float x1, float y1, float z1, float x2, float y2, float z2)
+    {
+        // This use to construct Octree
+        // with boundaries defined
+        if (x2 < x1 || y2 < y1 || z2 < z1)
+        {
+            cout << "boundary points are not valid" << endl;
+            return;
+        }
+        point = nullptr;
+        topLeftFront = new Point(x1, y1, z1);
+        bottomRightBack = new Point(x2, y2, z2);
+        for(int i = 0; i < 8; ++i){
+            children[i] = nullptr;
+        }
+        for (int i = TopLeftFront;
+             i <= BottomLeftBack;
+             ++i)
+            children[i] = new OctreeNode();
+    }
+    // Function that returns true if the point
+    // (x, y, z) exists in the octree
+     bool find(int x, int y, int z)
+    {
+        // If point is out of bound
+        if (x < topLeftFront->x
+            || x > bottomRightBack->x
+            || y < topLeftFront->y
+            || y > bottomRightBack->y
+            || z < topLeftFront->z
+            || z > bottomRightBack->z)
+            return 0;
+ 
+        // Otherwise perform binary search
+        // for each ordinate
+        int midx = (topLeftFront->x
+                    + bottomRightBack->x)
+                   / 2;
+        int midy = (topLeftFront->y
+                    + bottomRightBack->y)
+                   / 2;
+        int midz = (topLeftFront->z
+                    + bottomRightBack->z)
+                   / 2;
+ 
+        int pos = -1;
+ 
+        // Deciding the position
+        // where to move
+        if (x <= midx) {
+            if (y <= midy) {
+                if (z <= midz)
+                    pos = TopLeftFront;
+                else
+                    pos = TopLeftBottom;
+            }
+            else {
+                if (z <= midz)
+                    pos = BottomLeftFront;
+                else
+                    pos = BottomLeftBack;
+            }
+        }
+        else {
+            if (y <= midy) {
+                if (z <= midz)
+                    pos = TopRightFront;
+                else
+                    pos = TopRightBottom;
+            }
+            else {
+                if (z <= midz)
+                    pos = BottomRightFront;
+                else
+                    pos = BottomRightBack;
+            }
+        }
+ 
+        // If an internal node is encountered
+        if (children[pos]->point == nullptr) {
+            return children[pos]->find(x, y, z);
+        }
+        // If an empty node is encountered
+        if (children[pos]->point->x == -1.0) {
+            return false;
+        }
+        else { 
+            // If node is found with
+            // the given value
+            if (x == children[pos]->point->x
+                && y == children[pos]->point->y
+                && z == children[pos]->point->z)
+                return 1;
+        }
+        return 0;
+    }
+
+    void clear()
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            if (children[i])
+            {
+                children[i]->clear();
+                delete children[i];
+            }
+        }
+        delete point;
+        delete topLeftFront;
+        delete bottomRightBack;
+    }
+};
+
+class Octree : public OctreeBase
+{
+    OctreeNode *_root;
+
 public:
-    redwood::lang::cpu::CpuDevice* _device;  
-    OctreeNode* _root;
-    std::vector<redwood::lang::DeviceAllocation> buffers;
-
-    Octree(const BoundingBox& bounds, redwood::lang::cpu::CpuDevice* device) {
-        _device = device;
-        redwood::lang::DeviceAllocation root_buf;
-        _device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNode)), true, true}, &root_buf);
-        void* mappedData;
-        buffers.push_back(root_buf);
-        root_buf.device->map(root_buf, &mappedData);
-        _root = static_cast<OctreeNode*>(mappedData);
-        std::cout<<"done intialize"<<std::endl;
+    Octree(float x1, float y1, float z1, float x2, float y2, float z2)
+    {
+        _root = new OctreeNode(x1, y1, z1, x2, y2, z2);
     }
-
-    ~Octree() {
-        for(int i = 0; i < buffers.size(); ++i){
-            _device->dealloc_memory(buffers[i]);
+    ~Octree()
+    {
+        if (_root)
+        {
+            _root->clear();
         }
+        delete _root;
     }
-
-    // Insert a point into the octree
-    void insert(const Point& point) {
-        if (_root->bounds.contains(point)) {
-            insert(_root, point);
+    void insert(float x, float y, float z)
+    {
+        // If the point already exists in the octree
+        if (find(x, y, z) == true)
+        {
+            return;
         }
+        insert(_root, x, y, z);
     }
+    bool find(float x, float y, float z){
+        return _root->find(x, y, z);
+    }
+    void insert(OctreeNode *node, float x, float y, float z){
+        // If the point is out of bounds
+        if (x < node->topLeftFront->x || x > node->bottomRightBack->x || y < node->topLeftFront->y || y > node->bottomRightBack->y || z < node->topLeftFront->z || z > node->bottomRightBack->z)
+        {
+            return;
+        }
 
-    // Recursive insert method
-    void insert(OctreeNode* node, const Point& point) {
-        if (node->isLeaf()) {
-            node->points.push_back(point);
-            if (node->points.size() > 8) {
-                subdivide(node);
+        // Binary search to insert the point
+        float midx = (node->topLeftFront->x + node->bottomRightBack->x) / 2;
+        float midy = (node->topLeftFront->y + node->bottomRightBack->y) / 2;
+        float midz = (node->topLeftFront->z + node->bottomRightBack->z) / 2;
+
+        int pos = -1;
+
+        // Checking the octant of
+        // the point
+        if (x <= midx)
+        {
+            if (y <= midy)
+            {
+                if (z <= midz)
+                    pos = TopLeftFront;
+                else
+                    pos = TopLeftBottom;
             }
-        } else {
-            redwood::lang::DeviceAllocation child_buff;
-            _device->allocate_memory(redwood::lang::Device::AllocParams{sizeof(OctreeNode), true, true}, &child_buff);
-            void* mappedData;
-            child_buff.device->map(child_buff, &mappedData);
-            buffers.push_back(child_buff);
-            OctreeNode* node = static_cast<OctreeNode*>(mappedData);
-            int index = getSubnodeIndex(node, point);
-            if (node->children[index] == nullptr) {
-                BoundingBox childBounds = getChildBounds(node->bounds, index);
-                *node = OctreeNode(childBounds);
-                node->children[index] = node;
+            else
+            {
+                if (z <= midz)
+                    pos = BottomLeftFront;
+                else
+                    pos = BottomLeftBack;
             }
-            insert(node->children[index], point);
+        }
+        else
+        {
+            if (y <= midy)
+            {
+                if (z <= midz)
+                    pos = TopRightFront;
+                else
+                    pos = TopRightBottom;
+            }
+            else
+            {
+                if (z <= midz)
+                    pos = BottomRightFront;
+                else
+                    pos = BottomRightBack;
+            }
+        }
+
+        // If an internal node is encountered
+        if (node->children[pos]->point == nullptr)
+        {
+            //std::cout<<"internal point"<<std::endl;
+            insert(node->children[pos], x, y, z);
+            return;
+        }
+
+        // If an empty node is encountered
+        else if (node->children[pos]->point->x == -1)
+        {
+            //std::cout <<"empty point"<<std::endl;
+            delete node->children[pos];
+            node->children[pos] = new OctreeNode(x, y, z);
+            return;
+        }
+        else
+        {
+            float x_ = node->children[pos]->point->x,
+                  y_ = node->children[pos]->point->y,
+                  z_ = node->children[pos]->point->z;
+            delete node->children[pos];
+            node->children[pos] = nullptr;
+            if (pos == TopLeftFront)
+            {
+                node->children[pos] = new OctreeNode(node->topLeftFront->x,
+                                               node->topLeftFront->y,
+                                               node->topLeftFront->z,
+                                               midx,
+                                               midy,
+                                               midz);
+            }
+
+            else if (pos == TopRightFront)
+            {
+                node->children[pos] = new OctreeNode(midx + 1,
+                                               node->topLeftFront->y,
+                                               node->topLeftFront->z,
+                                               node->bottomRightBack->x,
+                                               midy,
+                                               midz);
+            }
+            else if (pos == BottomRightFront)
+            {
+                node->children[pos] = new OctreeNode(midx + 1,
+                                               midy + 1,
+                                               node->topLeftFront->z,
+                                               node->bottomRightBack->x,
+                                               node->bottomRightBack->y,
+                                               midz);
+            }
+            else if (pos == BottomLeftFront)
+            {
+                node->children[pos] = new OctreeNode(node->topLeftFront->x,
+                                               midy + 1,
+                                               node->topLeftFront->z,
+                                               midx,
+                                               node->bottomRightBack->y,
+                                               midz);
+            }
+            else if (pos == TopLeftBottom)
+            {
+                node->children[pos] = new OctreeNode(node->topLeftFront->x,
+                                               node->topLeftFront->y,
+                                               midz + 1,
+                                               midx,
+                                               midy,
+                                               node->bottomRightBack->z);
+            }
+            else if (pos == TopRightBottom)
+            {
+                node->children[pos] = new OctreeNode(midx + 1,
+                                               node->topLeftFront->y,
+                                               midz + 1,
+                                               node->bottomRightBack->x,
+                                               midy,
+                                               node->bottomRightBack->z);
+            }
+            else if (pos == BottomRightBack)
+            {
+                node->children[pos] = new OctreeNode(midx + 1,
+                                               midy + 1,
+                                               midz + 1,
+                                               node->bottomRightBack->x,
+                                               node->bottomRightBack->y,
+                                               node->bottomRightBack->z);
+            }
+            else if (pos == BottomLeftBack)
+            {
+                node->children[pos] = new OctreeNode(node->topLeftFront->x,
+                                               midy + 1,
+                                               midz + 1,
+                                               midx,
+                                               node->bottomRightBack->y,
+                                               node->bottomRightBack->z);
+            }
+            insert(node->children[pos], x_, y_, z_);
+            insert(node->children[pos], x, y, z);
         }
     }
-
-    // Subdivide the node into 8 subnodes
-    void subdivide(OctreeNode* node) {
-        const BoundingBox& currentBounds = node->bounds;
-        redwood::lang::DeviceAllocation child_buff;
-        _device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNode)*8), true, true}, &child_buff);
-        void* mappedData;
-        child_buff.device->map(child_buff, &mappedData);
-        buffers.push_back(child_buff);
-        OctreeNode* childrens = static_cast<OctreeNode*>(mappedData);
-        for (int i = 0; i < 8; ++i) {
-            BoundingBox childBounds = getChildBounds(currentBounds, i);
-            childrens[i] = OctreeNode(childBounds);
-            node->children[i] = &childrens[i];
+    void clear()
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            if (_root->children[i])
+            {
+                _root->children[i]->clear();
+                delete _root->children[i];
+            }
         }
-
-        // Move the points to the subnodes
-        for (const Point& point : node->points) {
-            int index = getSubnodeIndex(node, point);
-            insert(node->children[index], point);
-        }
-        node->points.clear();
-    }
-
-    // Get the index of the subnode for a point
-    int getSubnodeIndex(OctreeNode* node, const Point& point) {
-        const BoundingBox& currentBounds = node->bounds;
-        Point midpoint((currentBounds.min.x + currentBounds.max.x) / 2,
-                       (currentBounds.min.y + currentBounds.max.y) / 2,
-                       (currentBounds.min.z + currentBounds.max.z) / 2);
-
-        int index = 0;
-        if (point.x > midpoint.x) index |= 1;
-        if (point.y > midpoint.y) index |= 2;
-        if (point.z > midpoint.z) index |= 4;
-        return index;
-    }
-
-    // Calculate the bounding box for a subnode
-    BoundingBox getChildBounds(const BoundingBox& currentBounds, int index) {
-        Point min = currentBounds.min;
-        Point max = currentBounds.max;
-        Point midpoint((min.x + max.x) / 2, (min.y + max.y) / 2, (min.z + max.z) / 2);
-
-        if (index & 1) min.x = midpoint.x;
-        else max.x = midpoint.x;
-        if (index & 2) min.y = midpoint.y;
-        else max.y = midpoint.y;
-        if (index & 4) min.z = midpoint.z;
-        else max.z = midpoint.z;
-
-        return BoundingBox(min, max);
     }
 };
