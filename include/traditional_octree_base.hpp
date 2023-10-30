@@ -11,15 +11,15 @@
 #define BottomLeftBack 7
 
 struct Point {
-    float x;
-    float y;
-    float z;
+    int x;
+    int y;
+    int z;
     Point()
-        : x(-1.0), y(-1.0), z(-1.0)
+        : x(-1), y(-1), z(-1)
     {
     }
  
-    Point(float a, float b, float c)
+    Point(int a, int b, int c)
         : x(a), y(b), z(c)
     {
     }
@@ -31,9 +31,9 @@ class OctreeNodeBase{
 class OctreeBase{
     public:
     virtual ~OctreeBase(){};
-    virtual void insert(float x,
-                float y,
-                float z){};
-    virtual bool find(float x, float y, float z){};
+    virtual void insert(int x,
+                int y,
+                int z){};
+    virtual bool find(int x, int y, int z){};
     virtual void clear() {};
 };

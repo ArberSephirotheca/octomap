@@ -8,7 +8,7 @@ class OctreeNode : public OctreeNodeBase
 
     public:
     Point* point;
- 
+    
     // Represent the boundary of the cube
     OctreeNode* children[8];
     Point *topLeftFront, *bottomRightBack;
@@ -17,17 +17,18 @@ class OctreeNode : public OctreeNodeBase
         point = new Point();
     }
     // Constructor with three arguments
-    OctreeNode(float x, float y, float z)
+    OctreeNode(int x, int y, int z)
     {
         // To declare point node
         point = new Point(x, y, z);
     }
-    OctreeNode(float x1, float y1, float z1, float x2, float y2, float z2)
+    OctreeNode(int x1, int y1, int z1, int x2, int y2, int z2)
     {
         // This use to construct Octree
         // with boundaries defined
         if (x2 < x1 || y2 < y1 || z2 < z1)
         {
+            cout<<"x1: "<<x1<< " x2: "<<x2<<" y1: "<<y1<<" y2: "<<y2<<" z1: "<<z1<<" z2: "<<z2<<endl;
             cout << "boundary points are not valid" << endl;
             return;
         }
@@ -44,7 +45,7 @@ class OctreeNode : public OctreeNodeBase
     }
     // Function that returns true if the point
     // (x, y, z) exists in the octree
-     bool find(int x, int y, int z)
+     bool find(int x, int y, int z, int& count)
     {
         // If point is out of bound
         if (x < topLeftFront->x
@@ -102,10 +103,11 @@ class OctreeNode : public OctreeNodeBase
  
         // If an internal node is encountered
         if (children[pos]->point == nullptr) {
-            return children[pos]->find(x, y, z);
+            count += 1;
+            return children[pos]->find(x, y, z, count);
         }
         // If an empty node is encountered
-        if (children[pos]->point->x == -1.0) {
+        if (children[pos]->point->x == -1) {
             return false;
         }
         else { 
@@ -137,10 +139,11 @@ class OctreeNode : public OctreeNodeBase
 
 class Octree : public OctreeBase
 {
-    OctreeNode *_root;
 
 public:
-    Octree(float x1, float y1, float z1, float x2, float y2, float z2)
+    OctreeNode *_root;
+    int find_count = 0;
+    Octree(int x1, int y1, int z1, int x2, int y2, int z2)
     {
         _root = new OctreeNode(x1, y1, z1, x2, y2, z2);
     }
@@ -152,7 +155,7 @@ public:
         }
         delete _root;
     }
-    void insert(float x, float y, float z)
+    void insert(int x, int y, int z)
     {
         // If the point already exists in the octree
         if (find(x, y, z) == true)
@@ -161,10 +164,13 @@ public:
         }
         insert(_root, x, y, z);
     }
-    bool find(float x, float y, float z){
-        return _root->find(x, y, z);
+    bool find(int x, int y, int z){
+		int count = 0;
+		bool result =  _root->find(x, y, z,count);
+		find_count += count;
+		return result;
     }
-    void insert(OctreeNode *node, float x, float y, float z){
+    void insert(OctreeNode *node, int x, int y, int z){
         // If the point is out of bounds
         if (x < node->topLeftFront->x || x > node->bottomRightBack->x || y < node->topLeftFront->y || y > node->bottomRightBack->y || z < node->topLeftFront->z || z > node->bottomRightBack->z)
         {
@@ -172,9 +178,9 @@ public:
         }
 
         // Binary search to insert the point
-        float midx = (node->topLeftFront->x + node->bottomRightBack->x) / 2;
-        float midy = (node->topLeftFront->y + node->bottomRightBack->y) / 2;
-        float midz = (node->topLeftFront->z + node->bottomRightBack->z) / 2;
+        int midx = (node->topLeftFront->x + node->bottomRightBack->x) / 2;
+        int midy = (node->topLeftFront->y + node->bottomRightBack->y) / 2;
+        int midz = (node->topLeftFront->z + node->bottomRightBack->z) / 2;
 
         int pos = -1;
 
@@ -233,7 +239,7 @@ public:
         }
         else
         {
-            float x_ = node->children[pos]->point->x,
+            int x_ = node->children[pos]->point->x,
                   y_ = node->children[pos]->point->y,
                   z_ = node->children[pos]->point->z;
             delete node->children[pos];

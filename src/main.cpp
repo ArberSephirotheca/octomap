@@ -475,39 +475,19 @@ void test2()
 */
 
 
-void test_allocator_octree()
+void test_allocator_octree(std::vector<Point>& points)
 {
-    Octree octree = Octree(0,0,0,10,10,10);
-
-    std::random_device rd;
-    std::mt19937 gen(rd());
-
-    // Create uniform real distributions for x, y, and z
-    std::uniform_real_distribution<float> xDist(0, 10);
-    std::uniform_real_distribution<float> yDist(0, 10);
-    std::uniform_real_distribution<float> zDist(0, 10);
-
-    // Number of points to generate
-    const int numPoints = 10000;
-
   auto start = std::chrono::high_resolution_clock::now();
-  
-    // Create a vector to store the generated points
-    std::vector<Point> points;
-    points.reserve(numPoints);
 
-    // Generate the random points
-    for (int i = 0; i < numPoints; ++i) {
-        float x = xDist(gen);
-        float y = yDist(gen);
-        float z = zDist(gen);
-        points.emplace_back(x, y, z);
-    }
-    
+    Octree* octree = new Octree(0,0,0,100,100,100);
+
 
     for(const auto& point : points){
-      octree.insert(point.x, point.y, point.z);
+      octree->insert(point.x, point.y, point.z);
     }
+    std::cout<<"find count: "<<octree->find_count<<std::endl;
+
+    delete octree;
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
   std::cout << "Time taken by processing octree without allocator: " << duration.count() << " milliseconds" << std::endl;
@@ -515,39 +495,18 @@ void test_allocator_octree()
 
 
 
-void test_allocator_octree_cpu()
+void test_allocator_octree_cpu(std::vector<Point>& points)
 {
-      redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
-    Octree_CPU* octree = new Octree_CPU(0, 0, 0, 10, 10, 10, &cpu_deivce);
-
-    std::random_device rd;
-    std::mt19937 gen(rd());
-
-    // Create uniform real distributions for x, y, and z
-    std::uniform_real_distribution<double> xDist(0, 10);
-    std::uniform_real_distribution<double> yDist(0, 10);
-    std::uniform_real_distribution<double> zDist(0, 10);
-
-    // Number of points to generate
-    const int numPoints = 100000;
-
   auto start = std::chrono::high_resolution_clock::now();
 
-    // Create a vector to store the generated points
-    std::vector<Point> points;
-    points.reserve(numPoints);
+      redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
+    Octree_CPU* octree = new Octree_CPU(0, 0, 0, 100, 100, 100, &cpu_deivce);
 
-    // Generate the random points
-    for (int i = 0; i < numPoints; ++i) {
-        double x = xDist(gen);
-        double y = yDist(gen);
-        double z = zDist(gen);
-        points.emplace_back(x, y, z);
-    }
 
     for(const auto& point : points){
       octree->insert(point.x, point.y, point.z);
     }
+    std::cout<<"find count: "<<octree->find_count<<std::endl;
      delete octree;
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
@@ -834,9 +793,33 @@ void actual_work(int argc, char **argv){
 }
 int main(int argc, char **argv)
 {
-  test_allocator_octree_cpu();
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    // Create uniform real distributions for x, y, and z
+    std::uniform_int_distribution<int> xDist(0, 100);
+    std::uniform_int_distribution<int> yDist(0, 100);
+    std::uniform_int_distribution<int> zDist(0, 100);
+
+    // Number of points to generate
+    const int numPoints = 10000000;
+
+  auto start = std::chrono::high_resolution_clock::now();
+  
+    // Create a vector to store the generated points
+    std::vector<Point> points;
+    points.reserve(numPoints);
+
+    // Generate the random points
+    for (int i = 0; i < numPoints; ++i) {
+        int x = xDist(gen);
+        int y = yDist(gen);
+        int z = zDist(gen);
+        points.emplace_back(x, y, z);
+    }
+  test_allocator_octree_cpu(points);
   //test_allocator_octree_cuda();
-  test_allocator_octree();
+  test_allocator_octree(points);
   //actual_work(argc, argv);
 
 

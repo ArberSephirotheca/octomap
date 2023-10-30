@@ -24,7 +24,7 @@ target_include_directories(
   PUBLIC ${CMAKE_SOURCE_DIR})
 
 target_compile_features(my_app PUBLIC cxx_std_17)
-target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic -ltbb)
+target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic -ltbb -pg)
 
 # Add realsense2
 find_package(realsense2 REQUIRED)
