@@ -487,7 +487,8 @@ void test_allocator_octree(std::vector<Point>& points)
     }
     std::cout<<"find count: "<<octree->find_count<<std::endl;
 
-    delete octree;
+    ///octree->clear();
+  //  delete octree;
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
   std::cout << "Time taken by processing octree without allocator: " << duration.count() << " milliseconds" << std::endl;
@@ -507,10 +508,10 @@ void test_allocator_octree_cpu(std::vector<Point>& points)
       octree->insert(point.x, point.y, point.z);
     }
     std::cout<<"find count: "<<octree->find_count<<std::endl;
-     delete octree;
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
   std::cout << "Time taken by processing octree in cpu: " << duration.count() << " milliseconds" << std::endl;
+    delete octree;
 }
 
 /*
@@ -802,7 +803,7 @@ int main(int argc, char **argv)
     std::uniform_int_distribution<int> zDist(0, 100);
 
     // Number of points to generate
-    const int numPoints = 10000000;
+    const int numPoints = 100000;
 
   auto start = std::chrono::high_resolution_clock::now();
   

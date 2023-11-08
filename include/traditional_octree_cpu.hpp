@@ -10,11 +10,11 @@ class OctreeNodeCPU : public OctreeNodeBase
 
 public:
 	Point point;
-	redwood::lang::DeviceAllocation *handle;
 
 	// Represent the boundary of the cube
 	redwood::lang::DeviceAllocationId children[8];
 	Point topLeftFront, bottomRightBack;
+	std::vector<redwood::lang::DeviceAllocation *> buffers;
 	OctreeNodeCPU()
 	{
 		point = Point();
@@ -23,7 +23,7 @@ public:
 	{
 		point = Point(x, y, z);
 	}
-	OctreeNodeCPU(int x1, int y1, int z1, int x2, int y2, int z2, std::vector<redwood::lang::DeviceAllocation*> buffers, redwood::lang::cpu::CpuDevice *device)
+	OctreeNodeCPU(int x1, int y1, int z1, int x2, int y2, int z2, std::vector<redwood::lang::DeviceAllocation*>& buffers, redwood::lang::cpu::CpuDevice *device)
 	{	
 		// This use to construct Octree
 		// with boundaries defined
@@ -34,22 +34,22 @@ public:
 		point.x = -2;
 		topLeftFront = Point(x1, y1, z1);
 		bottomRightBack = Point(x2, y2, z2);
+		redwood::lang::DeviceAllocation *child_buf = new redwood::lang::DeviceAllocation();
+		device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)*8), true, true}, child_buf);
+		void *mappedData;
+		// copy the pointer to buffer to the host
+		buffers.push_back(child_buf);
+		// maps the allocated buffer to host
+		device->map(*child_buf, &mappedData);   
 		for (int i = 0; i < 8; ++i)
 		{
-			redwood::lang::DeviceAllocation *child_buf = new redwood::lang::DeviceAllocation();
-			device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
-			void *mappedData;
-			// copy the pointer to buffer to the host
-			buffers.push_back(child_buf);
-			// maps the allocated buffer to host
-			device->map(*child_buf, &mappedData);
 			auto current_node = OctreeNodeCPU();
-			current_node.handle = child_buf;
+			//current_node.handle = child_buf;
 			// store the id of the buffer the child node is stored in
-			current_node.children[i] = child_buf->alloc_id;
+			children[i] = buffers.size()-1;
 			// memcpy the data into mapped buffer
-			memcpy(mappedData, &current_node, sizeof(OctreeNodeCPU));
-			//device->unmap(*child_buf);
+			memcpy(mappedData+i*(sizeof(OctreeNodeCPU)), &current_node, sizeof(OctreeNodeCPU));
+			device->unmap(*child_buf);
 		}
 	}
 	bool find(int x, int y, int z, int& count, redwood::lang::cpu::CpuDevice* device, std::vector<redwood::lang::DeviceAllocation *>& buffers)
@@ -103,12 +103,15 @@ public:
 			}
 		}
 
+		//std::cout<<"buffer size: "<<buffers.size()<<std::endl;
+		//std::cout <<"id: " << children[pos]<<std::endl;
 		void *mappedData;
 		device->map(*buffers[children[pos]], &mappedData);
-		OctreeNodeCPU *child_node = static_cast<OctreeNodeCPU *>(mappedData);
+		OctreeNodeCPU *child_node = static_cast<OctreeNodeCPU *>(mappedData+pos*(sizeof(OctreeNodeCPU)));
 		// If an internal node is encountered
 		if (child_node->point.x == -2)
 		{
+			//std::cout<<"internal point"<<std::endl;
 			count += 1;
 			return child_node->find(x, y, z, count, device, buffers);
 		}
@@ -122,9 +125,11 @@ public:
 		{
 			// If node is found with
 			// the given value
-			if (x == child_node->point.x && y == child_node->point.y && z == child_node->point.z)
-				device->unmap(*buffers[children[pos]]);
+			if (x == child_node->point.x && y == child_node->point.y && z == child_node->point.z){
+			// This unmap causes incorrect result
+				//device->unmap(*buffers[children[pos]]);
 				return 1;
+			}
 		}
 		device->unmap(*buffers[children[pos]]);
 		return 0;
@@ -143,7 +148,7 @@ public:
 	Octree_CPU(int x1, int y1, int z1, int x2, int y2, int z2, redwood::lang::cpu::CpuDevice *device)
 	{
 		// TODO: This is a bug
-		std::cout << "allocate" << std::endl;
+		//std::cout << "allocate" << std::endl;
 		_device = device;
 		redwood::lang::DeviceAllocation *root_buf = new redwood::lang::DeviceAllocation();
 		_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, root_buf);
@@ -151,18 +156,20 @@ public:
 		buffers.push_back(root_buf);
 		root_buf->device->map(*root_buf, &mappedData);
 		auto root_node = OctreeNodeCPU(x1, y1, z1, x2, y2, z2, buffers, _device);
-		root_node.handle = root_buf;
+		//root_node.handle = root_buf;
 		memcpy(mappedData, &root_node, sizeof(OctreeNodeCPU));
 		//_device->unmap(*root_buf);
 		_root = root_buf;
-		std::cout<<"done allocate"<<std::endl;
+		//std::cout<<"done allocate"<<std::endl;
 	}
 
 	~Octree_CPU()
 	{
-		for (int i = 0; i < buffers.size(); ++i)
+		while (!buffers.empty())
 		{
-			_device->dealloc_memory(*buffers[i]);
+			//std::cout<<"buffer size: "<<buffers.size()<<std::endl;
+			_device->dealloc_memory(*buffers.back());
+			buffers.pop_back();
 		}
 	}
 
@@ -171,6 +178,7 @@ public:
 		// If the point already exists in the octree
 		if (find(x, y, z) == true)
 		{
+			//std::cout<<"already exist"<<std::endl;
 			return;
 		}
 		void *currentData;
@@ -181,7 +189,7 @@ public:
 	}
 	bool find(int x, int y, int z)
 	{
-		std::cout<<"find"<<std::endl;
+		//std::cout<<"find"<<std::endl;
 		int count = 0;
 		void *currentData;
 		_device->map(*_root, &currentData);
@@ -193,7 +201,7 @@ public:
 	}
 	void insert(OctreeNodeCPU* root_node, int x, int y, int z)
 	{
-		std::cout<<"insert"<<std::endl;
+		//std::cout<<"insert"<<std::endl;
 		// If the point is out of bounds
 		if (x < root_node->topLeftFront.x || x > root_node->bottomRightBack.x || y < root_node->topLeftFront.y || y > root_node->bottomRightBack.y || z < root_node->topLeftFront.z || z > root_node->bottomRightBack.z)
 		{
@@ -246,12 +254,12 @@ public:
 		// maps child node to the host
 		void *childData;
 		_device->map(*buffers[root_node->children[pos]], &childData);
-		OctreeNodeCPU *child_node = static_cast<OctreeNodeCPU *>(childData);
+		OctreeNodeCPU *child_node = static_cast<OctreeNodeCPU *>(childData+pos*(sizeof(OctreeNodeCPU)));
 
 		// If an internal node is encountered
 		if (child_node->point.x == -2)
 		{
-			 std::cout<<"internal point"<<std::endl;
+			// std::cout<<"internal point"<<std::endl;
 			insert(child_node, x, y, z);
 			//_device->unmap(*buffers[root_node->children[pos]]);
 			return;
@@ -260,50 +268,53 @@ public:
 		// If an empty node is encountered
 		else if (child_node->point.x == -1)
 		{
-			 std::cout <<"empty point"<<std::endl;
+			 //std::cout <<"empty point"<<std::endl;
 			 // allocate memory for children node
-			_device->dealloc_memory(*buffers[root_node->children[pos]]);
+			//_device->dealloc_memory(*buffers[root_node->children[pos]]);
 			redwood::lang::DeviceAllocation *child_buf = new redwood::lang::DeviceAllocation();
 			_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
 			void *mappedData;
 			// copy the pointer to buffer to the host
 			buffers.push_back(child_buf);
 			// maps the allocated buffer to host
+			root_node->children[pos] = buffers.size()-1;
 			_device->map(*child_buf, &mappedData);
-			auto current_node = OctreeNodeCPU(x, y, z);
-			current_node.handle = child_buf;
+			auto children_node = OctreeNodeCPU(x, y, z);
+			//children_node.handle = child_buf;
 			// store the id of the buffer the child node is stored in
-			current_node.children[pos] = child_buf->alloc_id;
 			// memcpy the data into mapped buffer
-			memcpy(mappedData, &current_node, sizeof(OctreeNodeCPU));
+			memcpy(mappedData, &children_node, sizeof(OctreeNodeCPU));
 			// unmap the buffer
 			//_device->unmap(*child_buf);
+			//_device->unmap(*buffers[root_node->children[pos]]);
 			return;
 		}
 		else
 		{
-			std::cout<<"point"<<std::endl;
+			//std::cout<<"point"<<std::endl;
 			int x_ = child_node->point.x,
 				  y_ = child_node->point.y,
 				  z_ = child_node->point.z;
-			_device->dealloc_memory(*child_node->handle);
+			//_device->dealloc_memory(*child_node->handle);
 			child_node = nullptr;
+			//_device->unmap(*buffers[root_node->children[pos]]);
 			if (pos == TopLeftFront)
 			{
 				redwood::lang::DeviceAllocation *child_buf = new redwood::lang::DeviceAllocation();
 				_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
 				void *mappedData;
 				buffers.push_back(child_buf);
+				root_node->children[pos] = buffers.size()-1;
 				_device->map(*child_buf, &mappedData);
-				auto current_node = OctreeNodeCPU(root_node->topLeftFront.x,
+				auto children_node = OctreeNodeCPU(root_node->topLeftFront.x,
 									  root_node->topLeftFront.y,
 									  root_node->topLeftFront.z,
 									  midx,
 									  midy,
 									  midz,  buffers, _device);
-				current_node.handle = child_buf;
-				current_node.children[pos] = child_buf->alloc_id;
-				memcpy(mappedData, &current_node, sizeof(OctreeNodeCPU));
+				//children_node.handle = child_buf;
+				memcpy(mappedData, &children_node, sizeof(OctreeNodeCPU));
+				child_node = static_cast<OctreeNodeCPU *>(mappedData);
 				//_device->unmap(*child_buf);
 			}
 
@@ -313,16 +324,17 @@ public:
 				_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
 				void *mappedData;
 				buffers.push_back(child_buf);
+				root_node->children[pos] = buffers.size()-1;
 				_device->map(*child_buf, &mappedData);
-				auto current_node = OctreeNodeCPU(midx + 1,
+				auto children_node = OctreeNodeCPU(midx + 1,
 									  root_node->topLeftFront.y,
 									  root_node->topLeftFront.z,
 									  root_node->bottomRightBack.x,
 									  midy,
 									  midz,  buffers, _device);
-				current_node.handle = child_buf;
-				current_node.children[pos] = child_buf->alloc_id;
-				memcpy(mappedData,  &current_node, sizeof(OctreeNodeCPU));
+				//children_node.handle = child_buf;
+				memcpy(mappedData,  &children_node, sizeof(OctreeNodeCPU));
+				child_node = static_cast<OctreeNodeCPU *>(mappedData);
 				//_device->unmap(*child_buf);
 
 			}
@@ -332,17 +344,18 @@ public:
 				_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
 				void *mappedData;
 				buffers.push_back(child_buf);
+				root_node->children[pos] = buffers.size()-1;
 				_device->map(*child_buf, &mappedData);
-				auto current_node = OctreeNodeCPU(midx + 1,
+				auto children_node = OctreeNodeCPU(midx + 1,
 									  midy + 1,
 									  root_node->topLeftFront.z,
 									  root_node->bottomRightBack.x,
 									  root_node->bottomRightBack.y,
 									  midz,  buffers, _device);
-				current_node.handle = child_buf;
-				current_node.children[pos] = child_buf->alloc_id;
-				memcpy(mappedData,  &current_node, sizeof(OctreeNodeCPU));
-			//	_device->unmap(*child_buf);
+				//children_node.handle = child_buf;
+				memcpy(mappedData,  &children_node, sizeof(OctreeNodeCPU));
+				child_node = static_cast<OctreeNodeCPU *>(mappedData);
+				//_device->unmap(*child_buf);
 			}
 			else if (pos == BottomLeftFront)
 			{
@@ -350,17 +363,18 @@ public:
 				_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
 				void *mappedData;
 				buffers.push_back(child_buf);
+				root_node->children[pos] = buffers.size()-1;
 				_device->map(*child_buf, &mappedData);
-				auto current_node = OctreeNodeCPU(root_node->topLeftFront.x,
+				auto children_node = OctreeNodeCPU(root_node->topLeftFront.x,
 									  midy + 1,
 									  root_node->topLeftFront.z,
 									  midx,
 									  root_node->bottomRightBack.y,
 									  midz,  buffers, _device);
-				current_node.handle = child_buf;
-				current_node.children[pos] = child_buf->alloc_id;
-				memcpy(mappedData,  &current_node, sizeof(OctreeNodeCPU));
-			//	_device->unmap(*child_buf);
+				//children_node.handle = child_buf;
+				memcpy(mappedData,  &children_node, sizeof(OctreeNodeCPU));
+				child_node = static_cast<OctreeNodeCPU *>(mappedData);
+				//_device->unmap(*child_buf);
 			}
 			else if (pos == TopLeftBottom)
 			{
@@ -368,17 +382,18 @@ public:
 				_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
 				void *mappedData;
 				buffers.push_back(child_buf);
+				root_node->children[pos] = buffers.size()-1;
 				_device->map(*child_buf, &mappedData);
-				auto current_node = OctreeNodeCPU(root_node->topLeftFront.x,
+				auto children_node = OctreeNodeCPU(root_node->topLeftFront.x,
 									  root_node->topLeftFront.y,
 									  midz + 1,
 									  midx,
 									  midy,
 									  root_node->bottomRightBack.z,  buffers, _device);
-				current_node.handle = child_buf;
-				current_node.children[pos] = child_buf->alloc_id;
-				memcpy(mappedData,  &current_node, sizeof(OctreeNodeCPU));
-			//	_device->unmap(*child_buf);
+				//children_node.handle = child_buf;
+				memcpy(mappedData,  &children_node, sizeof(OctreeNodeCPU));
+				child_node = static_cast<OctreeNodeCPU *>(mappedData);
+				//_device->unmap(*child_buf);
 			}
 			else if (pos == TopRightBottom)
 			{
@@ -386,17 +401,19 @@ public:
 				_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
 				void *mappedData;
 				buffers.push_back(child_buf);
+				root_node->children[pos] = buffers.size()-1;
 				_device->map(*child_buf, &mappedData);
-				auto current_node = OctreeNodeCPU(midx + 1,
+				auto children_node = OctreeNodeCPU(midx + 1,
 									  root_node->topLeftFront.y,
 									  midz + 1,
 									  root_node->bottomRightBack.x,
 									  midy,
 									  root_node->bottomRightBack.z,  buffers, _device);
-				current_node.handle = child_buf;
-				current_node.children[pos] = child_buf->alloc_id;
-				memcpy(mappedData,  &current_node, sizeof(OctreeNodeCPU));
-			//	_device->unmap(*child_buf);
+				//children_node.handle = child_buf;
+				memcpy(mappedData,  &children_node, sizeof(OctreeNodeCPU));
+				child_node = static_cast<OctreeNodeCPU *>(mappedData);
+
+				//_device->unmap(*child_buf);
 			}
 			else if (pos == BottomRightBack)
 			{
@@ -404,17 +421,18 @@ public:
 				_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
 				void *mappedData;
 				buffers.push_back(child_buf);
+				root_node->children[pos] = buffers.size()-1;
 				_device->map(*child_buf, &mappedData);
-				auto current_node = OctreeNodeCPU(midx + 1,
+				auto children_node = OctreeNodeCPU(midx + 1,
 									  midy + 1,
 									  midz + 1,
 									  root_node->bottomRightBack.x,
 									  root_node->bottomRightBack.y,
 									  root_node->bottomRightBack.z,  buffers, _device);
-				current_node.handle = child_buf;
-				current_node.children[pos] = child_buf->alloc_id;
-				memcpy(mappedData,  &current_node, sizeof(OctreeNodeCPU));
-			//	_device->unmap(*child_buf);
+				//children_node.handle = child_buf;
+				memcpy(mappedData,  &children_node, sizeof(OctreeNodeCPU));
+				child_node = static_cast<OctreeNodeCPU *>(mappedData);
+				//_device->unmap(*child_buf);
 
 			}
 			else if (pos == BottomLeftBack)
@@ -423,21 +441,22 @@ public:
 				_device->allocate_memory(redwood::lang::Device::AllocParams{(sizeof(OctreeNodeCPU)), true, true}, child_buf);
 				void *mappedData;
 				buffers.push_back(child_buf);
+				root_node->children[pos] = buffers.size()-1;
 				_device->map(*child_buf, &mappedData);
-				auto current_node = OctreeNodeCPU(root_node->topLeftFront.x,
+				auto children_node = OctreeNodeCPU(root_node->topLeftFront.x,
 									  midy + 1,
 									  midz + 1,
 									  midx,
 									  root_node->bottomRightBack.y,
 									  root_node->bottomRightBack.z,  buffers, _device);
-				current_node.handle = child_buf;
-				current_node.children[pos] = child_buf->alloc_id;
-				memcpy(mappedData,  &current_node, sizeof(OctreeNodeCPU));
-			//	_device->unmap(*child_buf);
+				//children_node.handle = child_buf;
+				memcpy(mappedData,  &children_node, sizeof(OctreeNodeCPU));
+				child_node = static_cast<OctreeNodeCPU *>(mappedData);
+				//_device->unmap(*child_buf);
 			}
 			insert(child_node, x_, y_, z_);
 			insert(child_node, x, y, z);
-			// _device->unmap(*buffers[root_node->children[pos]]);
+			 //_device->unmap(*buffers[root_node->children[pos]]);
 		}
 	}
 };

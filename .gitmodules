@@ -7,7 +7,6 @@
 [submodule "extern/librealsense"]
 	path = extern/librealsense
 	url = git@github.com:IntelRealSense/librealsense.git
-
 [submodule "extern/spdlog"]
 	path = extern/spdlog
 	url = git@github.com:gabime/spdlog.git

@@ -3,7 +3,7 @@
 #include "common/core.h"
 #include "common/arithmetic.h"
 #include "llvm/llvm_device.h"
-#include "common/constants.h"
+#include "inc/constants.h"
 #include <stdint.h>
 #include <map>
 #include <set>

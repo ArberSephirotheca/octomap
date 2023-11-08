@@ -6,6 +6,7 @@ add_subdirectory(common)
 add_subdirectory(llvm)
 add_subdirectory(cpu)
 add_subdirectory(cuda)
+add_subdirectory(runtime/llvm)
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/include/*.hpp"
   "${CMAKE_SOURCE_DIR}/common/*.h")
 
@@ -24,11 +25,11 @@ target_include_directories(
   PUBLIC ${CMAKE_SOURCE_DIR})
 
 target_compile_features(my_app PUBLIC cxx_std_17)
-target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic -ltbb -pg)
-
+target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic -ltbb)
 # Add realsense2
 find_package(realsense2 REQUIRED)
 
+find_package(LLVM REQUIRED CONFIG)
 
 # Add TBB
 find_package(TBB REQUIRED)

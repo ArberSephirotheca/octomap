@@ -131,9 +131,12 @@ class OctreeNode : public OctreeNodeBase
                 delete children[i];
             }
         }
-        delete point;
-        delete topLeftFront;
-        delete bottomRightBack;
+        if (point)
+            delete point;
+        if (topLeftFront)
+            delete topLeftFront;
+        if (bottomRightBack)
+            delete bottomRightBack;
     }
 };
 
