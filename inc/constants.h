@@ -14,6 +14,43 @@ constexpr std::size_t redwood_error_message_max_num_arguments = 32;
 constexpr std::size_t redwood_result_buffer_entries = 32;
 constexpr std::size_t redwood_max_num_ret_value = 30;
 
+// slot for kernel return value
+constexpr std::size_t redwood_result_buffer_ret_value_id = 0;
+
+// By default, CUDA could allocate up to 48KB static shared arrays.
+// It requires dynamic shared memory to allocate a larger array.
+// Therefore, when one shared array request for size greater than 48KB,
+// we switch it to dynamic allocation.
+// In current version, only one dynamic instance is allowed.
+// TODO: remove the limit.
+constexpr std::size_t cuda_dynamic_shared_array_threshold_bytes = 49152;
+
+// use for auto mesh_local to determine shared-mem size per block (in bytes)
+// TODO: get this at runtime
+constexpr std::size_t default_shared_mem_size = 65536;
+
+// Specialization for bool type. This solves the issue that return type ti.u1
+// always returns 0 in vulkan. This issue is caused by data endianness.
+template <bool, typename G>
+bool redwood_union_cast_with_different_sizes(G g) {
+  return g != 0;
+}
+
+template <typename T, typename G>
+T redwood_union_cast_with_different_sizes(G g) {
+  union {
+    T t;
+    G g;
+  } u;
+  u.g = g;
+  return u.t;
+}
+
+template <typename T, typename G>
+T redwood_union_cast(G g) {
+  static_assert(sizeof(T) == sizeof(G));
+  return redwood_union_cast_with_different_sizes<T>(g);
+}
 enum class ParameterType {
   kScalar,
   kNdarray,

@@ -4,6 +4,7 @@
 
 //#include "llvm/IR/Module.h"
 #include "common/core.h"
+#include "ir/snode_types.h"
 /*
 #include "redwood/common/serialization.h"
 #include "redwood/program/kernel.h"
@@ -19,7 +20,7 @@ namespace redwood::lang {
 // TODO(PGZXB): Rename these structs/classes.
 
 struct LlvmOfflineCache {
-  using Version = uint16[3];  // {MAJOR, MINOR, PATCH}
+  using Version = uint16_t[3];  // {MAJOR, MINOR, PATCH}
 
   enum Format {
     LL = 0x01,
@@ -72,7 +73,6 @@ struct LlvmOfflineCache {
       size_t cell_size_bytes{0};
       size_t chunk_size{0};
 
-      TI_IO_DEF(id, type, cell_size_bytes, chunk_size);
     };
 
     int tree_id{0};
@@ -80,7 +80,6 @@ struct LlvmOfflineCache {
     size_t root_size{0};
     std::vector<SNodeCacheData> snode_metas;
 
-    TI_IO_DEF(tree_id, root_id, root_size, snode_metas);
 
     // TODO(zhanlue): refactor llvm::Modules
     //
@@ -119,8 +118,9 @@ struct LlvmOfflineCache {
   // (SNodeTree) Given that snode_tree_id is not continuous, it is ridiculous to
   // ask the users to remember each of the snode_tree_ids
   // ** Find a way to name each SNodeTree **
+  */
   std::unordered_map<int, FieldCacheData> fields;  // key = snode_tree_id
-
+  /*
   std::unordered_map<std::string, KernelCacheData>
       kernels;  // key = kernel_name
 

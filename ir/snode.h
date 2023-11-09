@@ -8,6 +8,7 @@
 #include "inc/constants.h"
 //#include "redwood/ir/expr.h"
 #include "ir/snode_types.h"
+#include "common/logging.h"
 //#include "redwood/ir/type.h"
 //#include "redwood/program/snode_expr_utils.h"
 
@@ -34,19 +35,8 @@ class Axis {
   }
 };
 
-  struct FieldCacheData {
-    struct SNodeCacheData {
-      int id{0};
-      SNodeType type = SNodeType::undefined;
-      size_t cell_size_bytes{0};
-      size_t chunk_size{0};
-    };
 
-    int tree_id{0};
-    int root_id{0};
-    size_t root_size{0};
-    std::vector<SNodeCacheData> snode_metas;
-  };
+  
 /**
  * SNode shape metadata at a specific Axis.
  */

@@ -6,7 +6,6 @@
 #include "cuda/cuda_driver.h"
 #include "llvm/device_memory_pool.h"
 #include "cuda/cuda_context.h"
-#include "runtime/llvm/module/runtime.h"
 
 namespace redwood::lang {
 namespace {
@@ -50,7 +49,7 @@ LlvmRuntimeExecutor::LlvmRuntimeExecutor(CompileConfig &config
   thread_pool_ = std::make_unique<ThreadPool>(config.cpu_max_num_threads);
 
   llvm_runtime_ = nullptr;
-
+  cache_data_ = std::make_unique<LlvmOfflineCache>();
   if (arch_is_cpu(config.arch)) {
     config.max_block_dim = 1024;
     device_ = std::make_shared<cpu::CpuDevice>();
@@ -59,7 +58,7 @@ LlvmRuntimeExecutor::LlvmRuntimeExecutor(CompileConfig &config
   else if (config.arch == Arch::cuda) {
     int num_SMs{1};
     CUDADriver::get_instance().device_get_attribute(
-        &num_SMs, CU_DEVICE_ATTRIBUTE_MULRWPROCESSOR_COUNT, nullptr);
+        &num_SMs, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT, nullptr); 
     int query_max_block_dim{1024};
     CUDADriver::get_instance().device_get_attribute(
         &query_max_block_dim, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X, nullptr);
@@ -70,7 +69,7 @@ LlvmRuntimeExecutor::LlvmRuntimeExecutor(CompileConfig &config
       // query this attribute only when CUDA version is above 11.0
       CUDADriver::get_instance().device_get_attribute(
           &query_max_block_per_sm,
-          CU_DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULRWPROCESSOR, nullptr);
+          CU_DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR, nullptr);
     }
 
     if (config.max_block_dim == 0) {
@@ -89,8 +88,10 @@ LlvmRuntimeExecutor::LlvmRuntimeExecutor(CompileConfig &config
     } else {
       CUDAContext::get_instance().set_profiler(nullptr);
     }
-    */
+    
     CUDAContext::get_instance().set_debug(config.debug);
+    */
+
     if (config.cuda_stack_limit != 0) {
       CUDADriver::get_instance().context_set_limit(CU_LIMIT_STACK_SIZE,
                                                    config.cuda_stack_limit);
@@ -100,8 +101,10 @@ LlvmRuntimeExecutor::LlvmRuntimeExecutor(CompileConfig &config
   else {
     RW_NOT_IMPLEMENTED
   }
+  /*
   llvm_context_ = std::make_unique<redwoodLLVMContext>(
       config_, arch_is_cpu(config.arch) ? host_arch() : config.arch);
+      */
   //jit_session_ = JITSession::create(llvm_context_.get(), config, config.arch);
   //init_runtime_jit_module(llvm_context_->clone_runtime_module());
 }
@@ -164,7 +167,6 @@ uint64_t LlvmRuntimeExecutor::fetch_result_uint64_t(int i, uint64_t *result_buff
   if (config_.arch == Arch::cuda) {
     CUDADriver::get_instance().memcpy_device_to_host(&ret, result_buffer + i,
                                                      sizeof(uint64_t));
-
   }  else {
     ret = result_buffer[i];
   }
@@ -351,12 +353,11 @@ void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
   }  else {
     std::memset(root_buffer, 0, rounded_size);
   }
-
+  auto llvm_runtime = static_cast<redwood::runtime::LLVMRuntime*>(llvm_runtime_);
   DeviceAllocation alloc =
       llvm_device()->import_memory(root_buffer, rounded_size);
-
   snode_tree_allocs_[tree_id] = alloc;
-  runtime_initialize_snodes(llvm_runtime_, root_size, root_id, snode_metas,
+  redwood::runtime::runtime_initialize_snodes(llvm_runtime, root_size, root_id, (int) snode_metas.size(),
                             tree_id, rounded_size, root_buffer, all_dense);
 
   for (size_t i = 0; i < snode_metas.size(); i++) {
@@ -364,21 +365,21 @@ void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
       const auto snode_id = snode_metas[i].id;
       std::size_t node_size;
       auto element_size = snode_metas[i].cell_size_bytes;
-      /*
+      
       if (snode_metas[i].type == SNodeType::pointer) {
         // pointer. Allocators are for single elements
         node_size = element_size;
-      }*/
+      }
       // else {
         // dynamic. Allocators are for the chunks
         node_size = sizeof(void *) + element_size * snode_metas[i].chunk_size;
       //}
       RW_TRACE("Initializing allocator for snode {} (node size {})", snode_id,
                node_size);
-      runtime_NodeAllocator_initialize(llvm_runtime_, snode_id, node_size);
+      redwood::runtime::runtime_NodeAllocator_initialize(llvm_runtime, snode_id, node_size);
       RW_TRACE("Allocating ambient element for snode {} (node size {})",
                snode_id, node_size);
-      runtime_allocate_ambient(llvm_runtime_, snode_id, node_size);
+      redwood::runtime::runtime_allocate_ambient(llvm_runtime, snode_id, node_size);
     }
   }
 }
@@ -391,13 +392,13 @@ LlvmDevice *LlvmRuntimeExecutor::llvm_device() {
 DeviceAllocation LlvmRuntimeExecutor::allocate_memory_on_device(
     std::size_t alloc_size,
     uint64_t *result_buffer) {
-  auto devalloc = llvm_device()->allocate_memory_runtime(
-      {{alloc_size, /*host_write=*/false, /*host_read=*/false,
+    LlvmDevice::LlvmRuntimeAllocParams param = LlvmDevice::LlvmRuntimeAllocParams{{alloc_size, /*host_write=*/false, /*host_read=*/false,
         /*export_sharing=*/false, AllocUsage::Storage},
        //get_runtime_jit_module(),
        get_llvm_runtime(),
        result_buffer,
-       use_device_memory_pool()});
+       use_device_memory_pool()};
+  auto devalloc = llvm_device()->allocate_memory_runtime(param);
 
   RW_ASSERT(allocated_runtime_memory_allocs_.find(devalloc.alloc_id) ==
             allocated_runtime_memory_allocs_.end());
@@ -484,10 +485,10 @@ void *LlvmRuntimeExecutor::preallocate_memory(
 
   Device::AllocParams preallocated_device_buffer_alloc_params;
   preallocated_device_buffer_alloc_params.size = prealloc_size;
-  RhiResult res =
+  RedwoodResult res =
       llvm_device()->allocate_memory(preallocated_device_buffer_alloc_params,
                                      &preallocated_device_buffer_alloc);
-  RW_ERROR_IF(res != RhiResult::success,
+  RW_ERROR_IF(res != RedwoodResult::success,
               "Failed to pre-allocate device memory (err: {})", int(res));
 
   void *preallocated_device_buffer =
@@ -497,7 +498,7 @@ void *LlvmRuntimeExecutor::preallocate_memory(
   return preallocated_device_buffer;
 }
 
-/*
+
 void LlvmRuntimeExecutor::preallocate_runtime_memory() {
   if (preallocated_runtime_memory_allocs_ != nullptr)
     return;
@@ -519,12 +520,18 @@ void LlvmRuntimeExecutor::preallocate_runtime_memory() {
   RW_TRACE("Allocating device memory {:.2f} MB",
            1.0 * total_prealloc_size / (1UL << 20));
 
+  auto llvm_runtime = static_cast<redwood::runtime::LLVMRuntime*>(llvm_runtime_);
+
+  redwood::runtime::runtime_initialize_memory(llvm_runtime, total_prealloc_size,
+                              (Ptr) runtime_memory_prealloc_buffer);
+  /*
   auto *const runtime_jit = get_runtime_jit_module();
   runtime_jit->call<void *, std::size_t, void *>(
       "runtime_initialize_memory", llvm_runtime_, total_prealloc_size,
       runtime_memory_prealloc_buffer);
+      */
 }
-*/
+
 
 void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
                                               uint64_t **result_buffer_ptr) {
@@ -562,11 +569,11 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
     auto [temp_result_alloc, res] =
         llvm_device()->allocate_memory_unique({sizeof(uint64_t)});
     RW_ERROR_IF(
-        res != RhiResult::success,
+        res != RedwoodResult::success,
         "Failed to allocate memory for `runtime_get_memory_requirements`");
     void *temp_result_ptr = llvm_device()->get_memory_addr(*temp_result_alloc);
 
-    runtime_get_memory_requirements(temp_result_ptr, num_rand_states,
+    redwood::runtime::runtime_get_memory_requirements((Ptr) temp_result_ptr, num_rand_states,
                                     /*use_preallocated_buffer=*/1);
     runtime_objects_prealloc_size =
         size_t(fetch_result<uint64_t>(0, (uint64_t *)temp_result_ptr));
@@ -594,9 +601,9 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
   RW_TRACE("Launching runtime_initialize");
 
   auto *host_memory_pool = &HostMemoryPool::get_instance();
-  runtime_initialize(*result_buffer_ptr, host_memory_pool,
+  redwood::runtime::runtime_initialize((Ptr)*result_buffer_ptr, (Ptr) host_memory_pool,
                      runtime_objects_prealloc_size,
-                     runtime_objects_prealloc_buffer, num_rand_states,
+                     (Ptr) runtime_objects_prealloc_buffer, num_rand_states,
                      (void *)&host_allocate_aligned, (void *)std::printf,
                      (void *)std::vsnprintf);
 
@@ -614,15 +621,19 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
 
   if (config_.arch == Arch::cuda) {
     RW_TRACE("Initializing {} random states using CUDA", num_rand_states);
-    runtime_initialize_rand_states_cuda(config_.saturating_grid_dim,
+    /*
+    redwood::runtime::runtime_initialize_rand_states_cuda(config_.saturating_grid_dim,
         config_.max_block_dim, 0, llvm_runtime_, starting_rand_state);
+      */  
   } else {
     RW_TRACE("Initializing {} random states (serially)", num_rand_states);
-    runtime_initialize_rand_states_serial(llvm_runtime_, starting_rand_state);
+    auto llvm_runtime = static_cast<redwood::runtime::LLVMRuntime*>(llvm_runtime_);
+    redwood::runtime::runtime_initialize_rand_states_serial(llvm_runtime, starting_rand_state);
   }
 
   if (arch_use_host_memory(config_.arch)) {
-    LLVMRuntime_initialize_thread_pool(llvm_runtime_, thread_pool_.get(),
+    auto llvm_runtime = static_cast<redwood::runtime::LLVMRuntime*>(llvm_runtime_);
+    redwood::runtime::LLVMRuntime_initialize_thread_pool(llvm_runtime, thread_pool_.get(),
                                        (void *)ThreadPool::static_run);
     /*
     runtime_jit->call<void *, void *>("LLVMRuntime_set_assert_failed",
@@ -645,9 +656,78 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
   */
 }
 
+SNodeTree* LlvmRuntimeExecutor::add_snode_tree(std::unique_ptr<SNode> root){
+  const int id = allocate_snode_tree_id();
+  auto tree = std::make_unique<SNodeTree>(id, std::move(root));
+  tree->root()->set_snode_tree_id(id);
+  //cache_data_->fields.at(id);
+  /*
+  if (compile_only) {
+    program_impl_->compile_snode_tree_types(tree.get());
+  } else {
+    */
+    materialize_snode_tree(tree.get(), result_buffer_);
+  /*
+  }
+  */
+  if (id < snode_trees_.size()) {
+    snode_trees_[id] = std::move(tree);
+  } else {
+    RW_ASSERT(id == snode_trees_.size());
+    snode_trees_.push_back(std::move(tree));
+  }
+  return snode_trees_[id].get();
+}
+void LlvmRuntimeExecutor::materialize_snode_tree(SNodeTree *tree,
+                                      uint64_t *result_buffer_ptr){
+                    
+    int snode_tree_id = tree->id();
+    int root_id = tree->root()->id;
+
+    std::unique_ptr<LlvmStructCompiler> struct_compiler = std::unique_ptr<LlvmStructCompiler>();
+    struct_compiler->collect_snodes(*tree->root());
+    cache_field(snode_tree_id, root_id, *struct_compiler);
+    initialize_llvm_runtime_snodes(cache_data_->fields.at(snode_tree_id), result_buffer_ptr);
+}
 void LlvmRuntimeExecutor::destroy_snode_tree(SNodeTree *snode_tree) {
   //get_llvm_context()->delete_snode_tree(snode_tree->id());
+    if (cache_data_->fields.find(snode_tree->id()) != cache_data_->fields.end())
+      cache_data_->fields.erase(snode_tree->id());
   snode_tree_buffer_manager_->destroy(snode_tree);
+}
+
+void LlvmRuntimeExecutor::cache_field(int snode_tree_id, int root_id, const LlvmStructCompiler& struct_compiler){
+    if (cache_data_->fields.find(snode_tree_id) != cache_data_->fields.end()) {
+    // [TODO] check and update the Cache, instead of simply return.
+    return;
+  }
+
+  LlvmOfflineCache::FieldCacheData ret;
+  ret.tree_id = snode_tree_id;
+  ret.root_id = root_id;
+  ret.root_size = struct_compiler.root_size;
+
+  const auto &snodes = struct_compiler.snodes;
+  for (size_t i = 0; i < snodes.size(); i++) {
+    LlvmOfflineCache::FieldCacheData::SNodeCacheData snode_cache_data;
+    snode_cache_data.id = snodes[i]->id;
+    snode_cache_data.type = snodes[i]->type;
+    snode_cache_data.cell_size_bytes = snodes[i]->cell_size_bytes;
+    snode_cache_data.chunk_size = snodes[i]->chunk_size;
+
+    ret.snode_metas.emplace_back(std::move(snode_cache_data));
+  }
+
+  cache_data_->fields[snode_tree_id] = std::move(ret);
+}
+int LlvmRuntimeExecutor::allocate_snode_tree_id() {
+  if (free_snode_tree_ids_.empty()) {
+    return snode_trees_.size();
+  } else {
+    int id = free_snode_tree_ids_.top();
+    free_snode_tree_ids_.pop();
+    return id;
+  }
 }
 
 Device *LlvmRuntimeExecutor::get_compute_device() {

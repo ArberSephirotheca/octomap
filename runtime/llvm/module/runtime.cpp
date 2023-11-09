@@ -1,3 +1,5 @@
+#pragma once
+
 #include <atomic>
 #include <cstdint>
 #include <cmath>
@@ -10,7 +12,15 @@
 #include "inc/constants.h"
 #include "common/arithmetic.h"
 #include "util/bit.h"
+#include "inc/cuda_kernel_utils.inc.h"
 //#include "llvm-12/llvm/IR/Instructions.h"
+
+namespace redwood{
+  namespace runtime{
+
+struct PhysicalCoordinates {
+  int32_t val[redwood_max_num_indices];
+};
 
 struct RuntimeContext;
 
@@ -36,7 +46,35 @@ struct NodeManager;
 struct LLVMRuntime;
 struct ListManager;
 
+
+// Common Attributes
+struct StructMeta {
+  int32_t snode_id;
+  std::size_t element_size;
+  int64_t max_num_elements;
+
+  Ptr (*lookup_element)(Ptr, Ptr, int i);
+
+  Ptr (*from_parent_element)(Ptr);
+
+  char (*is_active)(Ptr, Ptr, int i);
+
+  int32_t (*get_num_elements)(Ptr, Ptr);
+
+  void (*refine_coordinates)(PhysicalCoordinates *inp_coord,
+                             PhysicalCoordinates *refined_coord,
+                             int index);
+
+  RuntimeContext *context;
+};
+
 extern "C" {
+
+struct Element {
+  Ptr element;
+  int loop_bounds[2];
+  PhysicalCoordinates pcoord;
+};
 
 struct RandState {
   uint32_t x;
@@ -86,8 +124,8 @@ struct ListManager {
   void append(void *data_ptr);
 
   int32_t reserve_new_element() {
-    // TODO: conisder using llvm::AtomicRMWInst for speed up
-    auto i = num_elements+1//llvm::AtomicRMWInst(&num_elements, 1);
+    // TODO: conisder using llvm::AtomicRMWInst for thread safety
+    auto i = num_elements+1;//llvm::AtomicRMWInst(&num_elements, 1);
     auto chunk_id = i >> log2chunk_num_elements;
     touch_chunk(chunk_id);
     return i;
@@ -205,9 +243,9 @@ struct LLVMRuntime {
 
   template <typename T>
   void set_result(std::size_t i, T t) {
-    static_assert(sizeof(T) <= sizeof(uint64));
-    ((u64 *)result_buffer)[i] =
-        redwood_union_cast_with_different_sizes<uint64>(t);
+    static_assert(sizeof(T) <= sizeof(uint64_t));
+    ((uint64_t *)result_buffer)[i] =
+        redwood_union_cast_with_different_sizes<uint64_t>(t);
   }
 
   template <typename T, typename... Args>
@@ -301,6 +339,74 @@ struct NodeManager {
   }
 };
 
+/*
+// [ON HOST] CPU backend
+// [ON DEVICE] CUDA/AMDGPU backend
+Ptr LLVMRuntime::allocate_aligned(PreallocatedMemoryChunk &memory_chunk,
+                                  std::size_t size,
+                                  std::size_t alignment,
+                                  bool request) {
+  if (request)
+    atomic_add_i64(&total_requested_memory, size);
+
+  if (memory_chunk.preallocated_size > 0) {
+    return allocate_from_reserved_memory(memory_chunk, size, alignment);
+  }
+
+  return (Ptr)host_allocator(memory_pool, size, alignment);
+}
+
+// [ONLY ON DEVICE] CUDA/AMDGPU backend
+Ptr LLVMRuntime::allocate_from_reserved_memory(
+    PreallocatedMemoryChunk &memory_chunk,
+    std::size_t size,
+    std::size_t alignment) {
+  Ptr ret = nullptr;
+  bool success = false;
+  locked_task(&allocator_lock, [&] {
+    std::size_t preallocated_head = (std::size_t)memory_chunk.preallocated_head;
+    std::size_t preallocated_tail = (std::size_t)memory_chunk.preallocated_tail;
+
+    auto alignment_bytes =
+        alignment - 1 - (preallocated_head + alignment - 1) % alignment;
+    size += alignment_bytes;
+    if (preallocated_head + size <= preallocated_tail) {
+      ret = (Ptr)(preallocated_head + alignment_bytes);
+      memory_chunk.preallocated_head += size;
+      success = true;
+    } else {
+      success = false;
+    }
+  });
+  if (!success) {
+#if ARCH_cuda
+    // Here unfortunately we have to rely on a native CUDA assert failure to
+    // halt the whole grid. Using a taichi_assert_runtime will not finish the
+    // whole kernel execution immediately.
+    __assertfail(
+        "Out of CUDA pre-allocated memory.\n"
+        "Consider using ti.init(device_memory_fraction=0.9) or "
+        "ti.init(device_memory_GB=4) to allocate more"
+        " GPU memory",
+        "Taichi JIT", 0, "allocate_from_reserved_memory", 1);
+#endif
+  }
+  taichi_assert_runtime(this, success, "Out of pre-allocated memory");
+  return ret;
+}
+
+// External API
+// [ON HOST] CPU backend
+// [ON DEVICE] CUDA/AMDGPU backend
+void runtime_memory_allocate_aligned(LLVMRuntime *runtime,
+                                     std::size_t size,
+                                     std::size_t alignment,
+                                     uint64 *result) {
+  *result =
+      taichi_union_cast_with_different_sizes<uint64>(runtime->allocate_aligned(
+          runtime->runtime_memory_chunk, size, alignment));
+}
+*/
 // External API
 // [ON HOST] CPU backend
 // [ON DEVICE] CUDA/AMDGPU backend
@@ -310,7 +416,7 @@ void runtime_initialize(
     std::size_t
         preallocated_size,  // Non-zero means use the preallocated buffer
     Ptr preallocated_buffer,
-    i32 num_rand_states,
+    int32_t num_rand_states,
     void *_host_allocator,
     void *_host_printf,
     void *_host_vsnprintf) {
@@ -377,6 +483,7 @@ void runtime_initialize_snodes(LLVMRuntime *runtime,
     runtime->element_lists[i] =
         runtime->create<ListManager>(runtime, sizeof(Element), 1024 * 64);
   }
+  
   Element elem;
   elem.loop_bounds[0] = 0;
   elem.loop_bounds[1] = 1;
@@ -392,20 +499,20 @@ void runtime_initialize_snodes(LLVMRuntime *runtime,
 // [ON HOST] CPU backend
 // [ON DEVICE] CUDA/AMDGPU backend
 void runtime_get_memory_requirements(Ptr result_buffer,
-                                     i32 num_rand_states,
-                                     i32 use_preallocated_buffer) {
-  i64 size = 0;
+                                     int32_t num_rand_states,
+                                     int32_t use_preallocated_buffer) {
+  int64_t size = 0;
 
   if (use_preallocated_buffer) {
-    size += redwood::iroundup(i64(sizeof(LLVMRuntime)), redwood_page_size);
+    size += redwood::iroundup(int64_t(sizeof(LLVMRuntime)), redwood_page_size);
   }
 
   size +=
-      redwood::iroundup(i64(redwood_global_tmp_buffer_size), redwood_page_size);
-  size += redwood::iroundup(i64(sizeof(RandState)) * num_rand_states,
+      redwood::iroundup(int64_t(redwood_global_tmp_buffer_size), redwood_page_size);
+  size += redwood::iroundup(int64_t(sizeof(RandState)) * num_rand_states,
                            redwood_page_size);
 
-  reinterpret_cast<i64 *>(result_buffer)[0] = size;
+  reinterpret_cast<int64_t *>(result_buffer)[0] = size;
 }
 
 void runtime_NodeAllocator_initialize(LLVMRuntime *runtime,
@@ -424,6 +531,16 @@ void runtime_allocate_ambient(LLVMRuntime *runtime,
       runtime->runtime_memory_chunk, size, 128, true /*request*/);
 }
 
+void runtime_initialize_memory(LLVMRuntime *runtime,
+                               std::size_t preallocated_size,
+                               Ptr preallocated_buffer) {
+  if (preallocated_size) {
+    runtime->runtime_memory_chunk.preallocated_size = preallocated_size;
+    runtime->runtime_memory_chunk.preallocated_head = preallocated_buffer;
+    runtime->runtime_memory_chunk.preallocated_tail =
+        preallocated_buffer + preallocated_size;
+  }
+}
 void runtime_initialize_rand_states_cuda(LLVMRuntime *runtime,
                                          int starting_rand_state) {
   int i = block_dim() * block_idx() + thread_idx();
@@ -441,4 +558,6 @@ void LLVMRuntime_initialize_thread_pool(LLVMRuntime *runtime,
                                         void *parallel_for) {
   runtime->thread_pool = (Ptr)thread_pool;
   runtime->parallel_for = (parallel_for_type)parallel_for;
+}
+}
 }

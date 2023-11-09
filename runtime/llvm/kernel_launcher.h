@@ -1,6 +1,6 @@
 #pragma once
 
-#include "redwood/program/kernel_launcher.h"
+#include "program/kernel_launcher.h"
 #include "runtime/llvm/llvm_runtime_executor.h"
 
 namespace redwood::lang {

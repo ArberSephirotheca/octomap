@@ -9,7 +9,7 @@
 #include <functional>
 #include <thread>
 
-#include "redwood/ir/snode.h"
+#include "ir/snode.h"
 
 namespace redwood::lang {
 

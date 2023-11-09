@@ -1,5 +1,5 @@
 #include "llvm/allocator.h"
-//#include "runtime/llvm/snode_tree_buffer_manager.h"
+#include "runtime/llvm/snode_tree_buffer_manager.h"
 
 namespace redwood::lang {
 
@@ -51,10 +51,11 @@ uint64_t *CachingAllocator::allocate(
     ptr_map_.erase(it_blk->second);
 
   } else {
+    device->allocate_memory_runtime(params);
     /*
     ret = reinterpret_cast<uint64_t *>(
-        device->allocate_llvm_runtime_memory_jit(params));
-        */
+        device->allocate_memory_runtime(params));
+    */  
   }
   return ret;
 }

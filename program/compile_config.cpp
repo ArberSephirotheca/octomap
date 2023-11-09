@@ -16,7 +16,9 @@ CompileConfig::CompileConfig() {
   print_preprocessed_ir = false;
   print_accessor_ir = false;
   use_llvm = true;
+  */
   demote_dense_struct_fors = true;
+  /*
   advanced_optimization = true;
   constant_folding = true;
   max_vector_width = 8;
@@ -32,8 +34,7 @@ CompileConfig::CompileConfig() {
   default_ip = PrimitiveType::i32;
   default_up = PrimitiveType::u32;
   verbose_kernel_launches = false;
-  */
-  /*
+
   kernel_profiler = false;
   */
   default_cpu_block_dim = 32;
@@ -50,10 +51,12 @@ CompileConfig::CompileConfig() {
   real_matrix_scalarize = true;
   half2_vectorization = false;
   make_cpu_multithreading_loop = true;
-
+  */
   saturating_grid_dim = 0;
+  
   max_block_dim = 0;
   cpu_max_num_threads = std::thread::hardware_concurrency();
+  /*
   random_seed = 0;
 
   // LLVM backend options:

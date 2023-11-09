@@ -2,16 +2,17 @@
 
 #include <cstddef>
 #include <memory>
+#include <stack>
 
 #include "llvm/llvm_device.h"
-//#include "runtime/llvm/llvm_offline_cache.h"
+#include "runtime/llvm/llvm_offline_cache.h"
 #include "runtime/llvm/snode_tree_buffer_manager.h"
 //#include "runtime/llvm/llvm_context.h"
 #include "struct/snode_tree.h"
 #include "program/compile_config.h"
-
-//#include "system/threading.h"
-
+#include "system/threading.h"
+#include "runtime/llvm/module/runtime.cpp"
+#include "runtime/llvm/llvm_struct_compiler.h"
 #define RW_RUNRWME_HOST
 #include "program/context.h"
 #undef RW_RUNRWME_HOST
@@ -30,6 +31,8 @@ namespace cpu {
 class CpuDevice;
 }  // namespace cpu
 
+
+
 class LlvmRuntimeExecutor {
  public:
   LlvmRuntimeExecutor(CompileConfig &config/*, KernelProfilerBase *profiler*/);
@@ -47,7 +50,7 @@ class LlvmRuntimeExecutor {
 
   // Ndarray and ArgPack Allocation
   DeviceAllocation allocate_memory_on_device(std::size_t alloc_size,
-                                             uint64 *result_buffer);
+                                             uint64_t *result_buffer);
 
   void deallocate_memory_on_device(DeviceAllocation handle);
 
@@ -77,6 +80,8 @@ class LlvmRuntimeExecutor {
   /* ----------------------- */
   /* ------ Allocation ----- */
   /* ----------------------- */
+  int allocate_snode_tree_id();
+
   template <typename T>
   T fetch_result(int i, uint64_t *result_buffer) {
     return redwood_union_cast_with_different_sizes<T>(
@@ -96,7 +101,7 @@ class LlvmRuntimeExecutor {
 
   void *preallocate_memory(std::size_t prealloc_size,
                            DeviceAllocationUnique &devalloc);
-  //void preallocate_runtime_memory();
+  void preallocate_runtime_memory();
 
   /* ------------------------- */
   /* ---- Runtime Helpers ---- */
@@ -122,14 +127,15 @@ class LlvmRuntimeExecutor {
         redwood_result_buffer_runtime_query_id, result_buffer));
   }
   */
-
+  void cache_field(int snode_tree_id, int root_id, const LlvmStructCompiler& struct_compiler);
   /* -------------------------- */
   /* ------ Member Access ----- */
   /* -------------------------- */
   void finalize();
 
-  uint64 fetch_result_uint64(int i, uint64 *result_buffer);
+  uint64_t fetch_result_uint64_t(int i, uint64_t *result_buffer);
   void destroy_snode_tree(SNodeTree *snode_tree);
+  SNodeTree* add_snode_tree(std::unique_ptr<SNode> root);
   /*
   std::size_t get_snode_num_dynamically_allocated(SNode *snode,
                                                   uint64 *result_buffer);
@@ -139,6 +145,11 @@ class LlvmRuntimeExecutor {
  private:
   CompileConfig &config_;
 
+  std::vector<std::unique_ptr<SNodeTree>> snode_trees_;
+  std::stack<int> free_snode_tree_ids_;
+  std::unique_ptr<LlvmOfflineCache> cache_data_;
+  //temporary use
+  uint64_t *result_buffer_{nullptr};
   //std::unique_ptr<redwoodLLVMContext> llvm_context_{nullptr};
   //std::unique_ptr<JITSession> jit_session_{nullptr};
   //JITModule *runtime_jit_module_{nullptr};
@@ -160,6 +171,8 @@ class LlvmRuntimeExecutor {
 
   bool use_device_memory_pool_ = false;
   bool finalized_{false};
+  void materialize_snode_tree(SNodeTree *tree,
+                                      uint64_t *result_buffer_ptr);
   //KernelProfilerBase *profiler_ = nullptr;
 };
 

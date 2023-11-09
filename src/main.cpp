@@ -796,7 +796,7 @@ int main(int argc, char **argv)
 {
     std::random_device rd;
     std::mt19937 gen(rd());
-
+    
     // Create uniform real distributions for x, y, and z
     std::uniform_int_distribution<int> xDist(0, 100);
     std::uniform_int_distribution<int> yDist(0, 100);
