@@ -20,12 +20,16 @@
 #include "include/util.hpp"
 #include "cpu/cpu_device.h"
 #include "cuda/cuda_device.h"
+#include "runtime/llvm/llvm_runtime_executor.h"
+#include "program/compile_config.h"
+#include "ir/snode.h"
 //#include "include/traditional_octree_cuda.hpp"
 #include "include/traditional_octree_cpu.hpp"
 #include "include/traditional_octree.hpp"
 
 // #include "occupancy_map.hpp"
 using pcl_ptr = pcl::PointCloud<pcl::PointXYZ>::Ptr;
+using namespace redwood::lang;
 // const int num_threads = std::thread::hardware_concurrency();
 std::mutex mtx; // Mutex for protecting shared data
 /*
@@ -792,11 +796,24 @@ void actual_work(int argc, char **argv){
   std::cout << "Make Unlinked BH nodes Time: " << make_nodes_time << " (" << make_nodes_time / total_time * 100 << "%)" << std::endl;
   std::cout << "Link BH nodes Time: " << link_nodes_time << " (" << link_nodes_time / total_time * 100 << "%)" << std::endl;
 }
+
+
+void run_snode(){
+    auto compile_config = CompileConfig();
+
+    auto executor = LlvmRuntimeExecutor(compile_config);
+    int n = 10;
+    uint64_t * result_buffer= nullptr;
+    executor.materialize_runtime(&result_buffer);
+    auto *root = new SNode(0, SNodeType::root);
+    auto *pointer = &root->pointer(Axis(0), n);
+}
+
 int main(int argc, char **argv)
 {
     std::random_device rd;
     std::mt19937 gen(rd());
-    
+
     // Create uniform real distributions for x, y, and z
     std::uniform_int_distribution<int> xDist(0, 100);
     std::uniform_int_distribution<int> yDist(0, 100);

@@ -7,6 +7,7 @@ add_subdirectory(llvm)
 add_subdirectory(cpu)
 add_subdirectory(cuda)
 add_subdirectory(runtime/llvm)
+add_subdirectory(program)
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/include/*.hpp"
   "${CMAKE_SOURCE_DIR}/common/*.h")
 
@@ -54,7 +55,7 @@ endif()
 # Link OpenMP library
 if(OpenMP_CXX_FOUND)
     target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS}
-    common_redwood llvm_redwood cpu_redwood cuda_redwood)
+    common_redwood llvm_redwood cpu_redwood cuda_redwood llvm_runtime)
 endif()
 
 

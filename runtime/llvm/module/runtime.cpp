@@ -339,23 +339,30 @@ struct NodeManager {
   }
 };
 
-/*
+
 // [ON HOST] CPU backend
 // [ON DEVICE] CUDA/AMDGPU backend
 Ptr LLVMRuntime::allocate_aligned(PreallocatedMemoryChunk &memory_chunk,
                                   std::size_t size,
                                   std::size_t alignment,
                                   bool request) {
+  // TODO: make it atomic
   if (request)
-    atomic_add_i64(&total_requested_memory, size);
+    total_requested_memory += size;
+  //std::atomic_fetch_add(&total_requested_memory, size);
+    //atomic_add_i64(&total_requested_memory, size);
 
+  // TODO: do it later for CUDA
+  /*
   if (memory_chunk.preallocated_size > 0) {
     return allocate_from_reserved_memory(memory_chunk, size, alignment);
   }
+  */
 
   return (Ptr)host_allocator(memory_pool, size, alignment);
 }
-
+/*
+#include "runtime/llvm/module/locked_task.h"
 // [ONLY ON DEVICE] CUDA/AMDGPU backend
 Ptr LLVMRuntime::allocate_from_reserved_memory(
     PreallocatedMemoryChunk &memory_chunk,
@@ -388,25 +395,25 @@ Ptr LLVMRuntime::allocate_from_reserved_memory(
         "Consider using ti.init(device_memory_fraction=0.9) or "
         "ti.init(device_memory_GB=4) to allocate more"
         " GPU memory",
-        "Taichi JIT", 0, "allocate_from_reserved_memory", 1);
+        "Redwood JIT", 0, "allocate_from_reserved_memory", 1);
 #endif
   }
-  taichi_assert_runtime(this, success, "Out of pre-allocated memory");
+  //redwood_assert_runtime(this, success, "Out of pre-allocated memory");
   return ret;
 }
-
+*/
 // External API
 // [ON HOST] CPU backend
 // [ON DEVICE] CUDA/AMDGPU backend
 void runtime_memory_allocate_aligned(LLVMRuntime *runtime,
                                      std::size_t size,
                                      std::size_t alignment,
-                                     uint64 *result) {
+                                     uint64_t *result) {
   *result =
-      taichi_union_cast_with_different_sizes<uint64>(runtime->allocate_aligned(
+      redwood_union_cast_with_different_sizes<uint64_t>(runtime->allocate_aligned(
           runtime->runtime_memory_chunk, size, alignment));
 }
-*/
+
 // External API
 // [ON HOST] CPU backend
 // [ON DEVICE] CUDA/AMDGPU backend
@@ -558,6 +565,43 @@ void LLVMRuntime_initialize_thread_pool(LLVMRuntime *runtime,
                                         void *parallel_for) {
   runtime->thread_pool = (Ptr)thread_pool;
   runtime->parallel_for = (parallel_for_type)parallel_for;
+}
+
+
+void ListManager::touch_chunk(int chunk_id) {
+  if (!chunks[chunk_id]){
+    auto chunk_ptr = runtime->allocate_aligned(
+            runtime->runtime_memory_chunk,
+            max_num_elements_per_chunk * element_size, 4096, true);
+    // TODO: make it atomic
+    chunks[chunk_id] = chunk_ptr;
+    //std::atomic_exchange(&chunks[chunk_id], chunk_ptr);
+  }
+  /*
+  if (!chunks[chunk_id]) {
+    locked_task(&lock, [&] {
+      // may have been allocated during lock contention
+      if (!chunks[chunk_id]) {
+        grid_memfence();
+        auto chunk_ptr = runtime->allocate_aligned(
+            runtime->runtime_memory_chunk,
+            max_num_elements_per_chunk * element_size, 4096, true);
+        atomic_exchange_u64((u64 *)&chunks[chunk_id], (u64)chunk_ptr);
+      }
+    });
+  }
+  */
+}
+
+
+void ListManager::append(void *data_ptr) {
+  auto ptr = allocate();
+  std::memcpy(ptr, data_ptr, element_size);
+}
+
+Ptr ListManager::allocate() {
+  auto i = reserve_new_element();
+  return get_element_ptr(i);
 }
 }
 }

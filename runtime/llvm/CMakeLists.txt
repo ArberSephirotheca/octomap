@@ -3,11 +3,11 @@
 add_library(llvm_runtime)
 target_sources(llvm_runtime
   PRIVATE
+    #module/runtime.cpp
     llvm_runtime_executor.cpp
     #llvm_offline_cache.cpp
     #llvm_context.cpp
     snode_tree_buffer_manager.cpp
-    module/runtime.cpp
     #kernel_launcher.cpp
   )
 

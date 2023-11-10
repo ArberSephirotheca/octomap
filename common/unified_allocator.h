@@ -9,7 +9,7 @@ namespace redwood::lang {
 
 class HostMemoryPool;
 
-// This class can only be accessed by MemoryPool
+// This class can only be accessed by HostMemoryPool
 class UnifiedAllocator {
  public:
   struct MemoryChunk {

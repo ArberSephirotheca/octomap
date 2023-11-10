@@ -566,6 +566,7 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
   size_t runtime_objects_prealloc_size = 0;
   void *runtime_objects_prealloc_buffer = nullptr;
   if (config_.arch == Arch::cuda) {
+    /*
     auto [temp_result_alloc, res] =
         llvm_device()->allocate_memory_unique({sizeof(uint64_t)});
     RW_ERROR_IF(
@@ -574,7 +575,7 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
     void *temp_result_ptr = llvm_device()->get_memory_addr(*temp_result_alloc);
 
     redwood::runtime::runtime_get_memory_requirements((Ptr) temp_result_ptr, num_rand_states,
-                                    /*use_preallocated_buffer=*/1);
+                                    1);
     runtime_objects_prealloc_size =
         size_t(fetch_result<uint64_t>(0, (uint64_t *)temp_result_ptr));
     temp_result_alloc.reset();
@@ -592,7 +593,7 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
     *result_buffer_ptr =
         (uint64_t *)((uint8_t *)runtime_objects_prealloc_buffer +
                      runtime_objects_prealloc_size);
-
+    */
   } else {
     *result_buffer_ptr = (uint64_t *)HostMemoryPool::get_instance().allocate(
         sizeof(uint64_t) * redwood_result_buffer_entries, 8);
@@ -614,9 +615,11 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
 
   // Preallocate for runtime memory and update to LLVMRuntime
   if (config_.arch == Arch::cuda || config_.arch == Arch::amdgpu) {
+    /*
     if (!use_device_memory_pool()) {
       preallocate_runtime_memory();
     }
+    */
   }
 
   if (config_.arch == Arch::cuda) {

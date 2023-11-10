@@ -5,8 +5,8 @@
 
 namespace redwood::lang {
 
-struct CompileConfig {
-  
+class CompileConfig {
+  public:
   Arch arch;
   /*
   bool debug;
