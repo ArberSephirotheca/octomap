@@ -1,4 +1,6 @@
 #pragma once
+#include "locked_task.h"
+#include "runtime/llvm/runtime.h"
 
 struct DynamicNode {
   int32_t lock;
@@ -11,7 +13,6 @@ struct DynamicMeta : public StructMeta {
   int chunk_size;
 };
 
-STRUCT_FIELD(DynamicMeta, chunk_size);
 
 void Dynamic_activate(Ptr meta_, Ptr node_, int i) {
   auto meta = (DynamicMeta *)(meta_);
@@ -47,7 +48,7 @@ void Dynamic_deactivate(Ptr meta_, Ptr node_) {
     locked_task(Ptr(&node->lock), [&] {
       node->n = 0;
       auto p_chunk_ptr = &node->ptr;
-      auto rt = meta->context->runtime;
+      auto rt = meta->runtime;
       auto alloc = rt->node_allocators[meta->snode_id];
       while (*p_chunk_ptr) {
         alloc->recycle(*p_chunk_ptr);
@@ -87,7 +88,7 @@ Ptr Dynamic_allocate(Ptr meta_, Ptr node_, i32 *len) {
   return nullptr;
 }
 
-u1 Dynamic_is_active(Ptr meta_, Ptr node_, int i) {
+bool Dynamic_is_active(Ptr meta_, Ptr node_, int i) {
   auto node = (DynamicNode *)(node_);
   return i < node->n;
 }
@@ -113,7 +114,7 @@ Ptr Dynamic_lookup_element(Ptr meta_, Ptr node_, int i) {
   }
 }
 
-i32 Dynamic_get_num_elements(Ptr meta_, Ptr node_) {
+int32_t Dynamic_get_num_elements(Ptr meta_, Ptr node_) {
   auto node = (DynamicNode *)(node_);
   return node->n;
 }

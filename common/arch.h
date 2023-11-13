@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string>
-
 namespace redwood {
 
 enum class Arch : int {

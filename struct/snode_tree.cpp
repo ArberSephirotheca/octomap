@@ -1,4 +1,4 @@
-#include "redwood/struct/snode_tree.h"
+#include "struct/snode_tree.h"
 
 namespace redwood::lang {
 namespace {
@@ -22,7 +22,7 @@ SNodeTree::SNodeTree(int id, std::unique_ptr<SNode> root)
 void SNodeTree::check_tree_validity(SNode &node) {
   if (node.ch.empty()) {
     if (node.type != SNodeType::place && node.type != SNodeType::root) {
-      TI_ERROR("{} node must have at least one child.",
+      RW_ERROR("{} node must have at least one child.",
                snode_type_name(node.type));
     }
   }

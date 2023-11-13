@@ -1,12 +1,5 @@
 #include "runtime/llvm/llvm_runtime_executor.h"
 
-#include "common/host_memory_pool.h"
-#include "cpu/cpu_device.h"
-#include "cuda/cuda_device.h"
-#include "cuda/cuda_driver.h"
-#include "llvm/device_memory_pool.h"
-#include "cuda/cuda_context.h"
-
 namespace redwood::lang {
 namespace {
 void assert_failed_host(const char *msg) {
@@ -370,10 +363,10 @@ void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
         // pointer. Allocators are for single elements
         node_size = element_size;
       }
-      // else {
+       else {
         // dynamic. Allocators are for the chunks
         node_size = sizeof(void *) + element_size * snode_metas[i].chunk_size;
-      //}
+      }
       RW_TRACE("Initializing allocator for snode {} (node size {})", snode_id,
                node_size);
       redwood::runtime::runtime_NodeAllocator_initialize(llvm_runtime, snode_id, node_size);
@@ -486,7 +479,7 @@ void *LlvmRuntimeExecutor::preallocate_memory(
   Device::AllocParams preallocated_device_buffer_alloc_params;
   preallocated_device_buffer_alloc_params.size = prealloc_size;
   RedwoodResult res =
-      llvm_device()->allocate_memory(preallocated_device_buffer_alloc_params,
+      llvm_device()->as<cuda::CudaDevice>()->allocate_memory(preallocated_device_buffer_alloc_params,
                                      &preallocated_device_buffer_alloc);
   RW_ERROR_IF(res != RedwoodResult::success,
               "Failed to pre-allocate device memory (err: {})", int(res));
@@ -686,9 +679,15 @@ void LlvmRuntimeExecutor::materialize_snode_tree(SNodeTree *tree,
                     
     int snode_tree_id = tree->id();
     int root_id = tree->root()->id;
-
-    std::unique_ptr<LlvmStructCompiler> struct_compiler = std::unique_ptr<LlvmStructCompiler>();
+  
+    std::unique_ptr<StructCompiler> struct_compiler{nullptr};
+    // TODO: change the hardcode arch
+    struct_compiler = std::make_unique<LlvmStructCompiler>(
+      arch_is_cpu(config_.arch) ? redwood::Arch::arm64 : config_.arch, config_, tree->id());
+    
+    RW_INFO("Collecting snode tree {} (root_id={})", snode_tree_id, root_id);
     struct_compiler->collect_snodes(*tree->root());
+    RW_INFO("Cache field for snode tree {} (root_id={})", snode_tree_id, root_id);
     cache_field(snode_tree_id, root_id, *struct_compiler);
     initialize_llvm_runtime_snodes(cache_data_->fields.at(snode_tree_id), result_buffer_ptr);
 }
@@ -699,7 +698,7 @@ void LlvmRuntimeExecutor::destroy_snode_tree(SNodeTree *snode_tree) {
   snode_tree_buffer_manager_->destroy(snode_tree);
 }
 
-void LlvmRuntimeExecutor::cache_field(int snode_tree_id, int root_id, const LlvmStructCompiler& struct_compiler){
+void LlvmRuntimeExecutor::cache_field(int snode_tree_id, int root_id, const StructCompiler& struct_compiler){
     if (cache_data_->fields.find(snode_tree_id) != cache_data_->fields.end()) {
     // [TODO] check and update the Cache, instead of simply return.
     return;
@@ -717,11 +716,15 @@ void LlvmRuntimeExecutor::cache_field(int snode_tree_id, int root_id, const Llvm
     snode_cache_data.type = snodes[i]->type;
     snode_cache_data.cell_size_bytes = snodes[i]->cell_size_bytes;
     snode_cache_data.chunk_size = snodes[i]->chunk_size;
-
+    RW_INFO("Caching snode {} (type={})", snode_cache_data.id,
+            snode_cache_data.type);
+    RW_INFO("  cell_size_bytes={}", snode_cache_data.cell_size_bytes);
+    RW_INFO("  chunk_size={}", snode_cache_data.chunk_size);
     ret.snode_metas.emplace_back(std::move(snode_cache_data));
   }
 
   cache_data_->fields[snode_tree_id] = std::move(ret);
+  RW_INFO("root_size={}", ret.root_size);
 }
 int LlvmRuntimeExecutor::allocate_snode_tree_id() {
   if (free_snode_tree_ids_.empty()) {

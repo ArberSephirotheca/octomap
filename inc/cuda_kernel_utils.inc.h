@@ -1,4 +1,4 @@
-extern "C" {
+#pragma once
 
 int thread_idx() {
   return 0;
@@ -22,5 +22,4 @@ int block_dim() {
 
 int grid_dim() {
   return 0;
-}
 }

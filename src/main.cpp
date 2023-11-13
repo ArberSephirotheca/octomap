@@ -22,7 +22,8 @@
 #include "cuda/cuda_device.h"
 #include "runtime/llvm/llvm_runtime_executor.h"
 #include "program/compile_config.h"
-#include "ir/snode.h"
+#include "struct/snode.h"
+#include "common/arch.h"
 //#include "include/traditional_octree_cuda.hpp"
 #include "include/traditional_octree_cpu.hpp"
 #include "include/traditional_octree.hpp"
@@ -802,11 +803,14 @@ void run_snode(){
     auto compile_config = CompileConfig();
 
     auto executor = LlvmRuntimeExecutor(compile_config);
-    int n = 10;
+    int n = 20;
     uint64_t * result_buffer= nullptr;
     executor.materialize_runtime(&result_buffer);
     auto *root = new SNode(0, SNodeType::root);
-    auto *pointer = &root->pointer(Axis(0), n);
+    auto *pointer = &root->dynamic(Axis(0), 1024, 32);
+    auto *place = &pointer->insert_children(SNodeType::place);
+    executor.add_snode_tree(std::unique_ptr<SNode>(root));
+    
 }
 
 int main(int argc, char **argv)
@@ -835,9 +839,10 @@ int main(int argc, char **argv)
         int z = zDist(gen);
         points.emplace_back(x, y, z);
     }
-  test_allocator_octree_cpu(points);
+  run_snode();
+  //test_allocator_octree_cpu(points);
   //test_allocator_octree_cuda();
-  test_allocator_octree(points);
+  //test_allocator_octree(points);
   //actual_work(argc, argv);
 
 

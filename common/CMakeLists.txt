@@ -9,6 +9,7 @@ target_sources(${COMMON_REDWOOD}
     core.cpp
     device.cpp
     dynamic_loader.cpp
+    arch.cpp
   )
   target_compile_features(common_redwood PUBLIC cxx_std_17)
 

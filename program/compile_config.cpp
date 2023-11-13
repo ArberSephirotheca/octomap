@@ -7,7 +7,8 @@
 namespace redwood::lang {
 
 CompileConfig::CompileConfig() {
-  arch = host_arch();
+  // TODO: change the hard code
+  arch = Arch::arm64;
   /*
   simd_width = default_simd_width(arch);
   opt_level = 1;

@@ -7,7 +7,7 @@
 
 #include "inc/constants.h"
 //#include "redwood/ir/expr.h"
-#include "ir/snode_types.h"
+#include "struct/snode_types.h"
 #include "common/logging.h"
 //#include "redwood/ir/type.h"
 //#include "redwood/program/snode_expr_utils.h"
@@ -107,7 +107,6 @@ class SNode {
   //DataType dt;
   bool has_ambient{false};
   //TypedConstant ambient_val;
-  // Note: parent will not be set until structural nodes are compiled!
   SNode *parent{nullptr};
   std::unique_ptr<GradInfoProvider> grad_info{nullptr};
 
@@ -128,6 +127,9 @@ class SNode {
 
   ~SNode() = default;
 
+  template<typename T>
+  T& operator[](int index);
+  
   std::string node_type_name;
   SNodeType type;
   bool _morton{false};
@@ -328,13 +330,14 @@ class SNode {
   void allocate_adjoint_checkbit();
   */
 
+/*
   int64_t read_int(const std::vector<int> &i);
   uint64_t read_uint(const std::vector<int> &i);
   float read_float(const std::vector<int> &i);
   void write_int(const std::vector<int> &i, int64_t val);
   void write_uint(const std::vector<int> &i, uint64_t val);
   void write_float(const std::vector<int> &i, float val);
-
+*/
   uint64_t fetch_reader_result();  // TODO: refactor
 
   // SNodeTree part

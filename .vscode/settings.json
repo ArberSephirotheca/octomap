@@ -91,6 +91,7 @@
         "core": "cpp",
         "*.txx": "cpp",
         "span": "cpp",
-        "format": "cpp"
+        "format": "cpp",
+        "any": "cpp"
     }
 }

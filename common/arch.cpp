@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdio>
+#include <iostream>
 #include "common/arch.h"
 #include "common/logging.h"
 //#include "redwood/rhi/impl_support.h"

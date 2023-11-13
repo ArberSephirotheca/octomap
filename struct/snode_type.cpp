@@ -1,4 +1,4 @@
-#include "ir/snode_types.h"
+#include "struct/snode_types.h"
 
 #include "common/logging.h"
 
@@ -14,7 +14,7 @@ std::string snode_type_name(SNodeType t) {
 
 #undef PER_SNODE
     default:
-      TI_NOT_IMPLEMENTED;
+      RW_NOT_IMPLEMENTED;
   }
 }
 

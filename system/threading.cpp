@@ -20,7 +20,7 @@ bool test_threading() {
       for (int t = 0; t < 10000000; t++) {
         ret += t * 1e-20;
       }
-      RW_P(int(i + ret + 10 * *(int *)j));
+      //RW_P(int(i + ret + 10 * *(int *)j));
     });
   }
   return true;

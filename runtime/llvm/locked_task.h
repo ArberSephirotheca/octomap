@@ -1,5 +1,22 @@
 #pragma once
+#include <atomic>
 
+using Ptr = uint8_t*;
+
+int atomic_max_i32(Ptr dest, int val){
+  int old = *(int *)dest;
+  while (old < val) {
+    old = std::atomic_compare_exchange_strong((int *)dest, old, val);
+  }
+  return old;
+
+}
+void mutex_lock_i32(Ptr mutex){
+  while(std::atomic_exchange((int32_t *)mutex, 1) == 1);
+}
+void mutex_unlock_i32(Ptr mutex) {
+  std::atomic_exchange((int32_t *)mutex, 0);
+}
 template <typename T, typename G>
 class lock_guard {
  public:

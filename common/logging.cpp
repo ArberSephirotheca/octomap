@@ -6,7 +6,7 @@
 
 namespace redwood {
 
-const auto default_logging_level = "info";
+const auto default_logging_level = "trace";
 
 void Logger::set_level(const std::string &level_name) {
   auto new_level = level_enum_from_string(level_name);

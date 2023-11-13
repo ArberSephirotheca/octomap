@@ -11,8 +11,15 @@
 #include "struct/snode_tree.h"
 #include "program/compile_config.h"
 #include "system/threading.h"
-#include "runtime/llvm/module/runtime.cpp"
+#include "runtime/llvm/runtime.h"
 #include "runtime/llvm/llvm_struct_compiler.h"
+#include "cuda/cuda_device.h"
+#include "common/host_memory_pool.h"
+#include "cpu/cpu_device.h"
+#include "cuda/cuda_driver.h"
+#include "llvm/device_memory_pool.h"
+#include "cuda/cuda_context.h"
+
 #define RW_RUNRWME_HOST
 #include "program/context.h"
 #undef RW_RUNRWME_HOST
@@ -47,7 +54,7 @@ class LlvmRuntimeExecutor {
   void initialize_llvm_runtime_snodes(
       const LlvmOfflineCache::FieldCacheData &field_cache_data,
       uint64_t *result_buffer);
-
+  SNodeTree* add_snode_tree(std::unique_ptr<SNode> root);
   // Ndarray and ArgPack Allocation
   DeviceAllocation allocate_memory_on_device(std::size_t alloc_size,
                                              uint64_t *result_buffer);
@@ -127,7 +134,7 @@ class LlvmRuntimeExecutor {
         redwood_result_buffer_runtime_query_id, result_buffer));
   }
   */
-  void cache_field(int snode_tree_id, int root_id, const LlvmStructCompiler& struct_compiler);
+  void cache_field(int snode_tree_id, int root_id, const StructCompiler& struct_compiler);
   /* -------------------------- */
   /* ------ Member Access ----- */
   /* -------------------------- */
@@ -135,7 +142,6 @@ class LlvmRuntimeExecutor {
 
   uint64_t fetch_result_uint64_t(int i, uint64_t *result_buffer);
   void destroy_snode_tree(SNodeTree *snode_tree);
-  SNodeTree* add_snode_tree(std::unique_ptr<SNode> root);
   /*
   std::size_t get_snode_num_dynamically_allocated(SNode *snode,
                                                   uint64 *result_buffer);

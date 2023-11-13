@@ -4,7 +4,7 @@
 
 //#include "llvm/IR/Module.h"
 #include "common/core.h"
-#include "ir/snode_types.h"
+#include "struct/snode_types.h"
 /*
 #include "redwood/common/serialization.h"
 #include "redwood/program/kernel.h"

@@ -1,7 +1,7 @@
 #include <limits>
 #include <algorithm>
 #include <cstring>
-#include "ir/snode.h"
+#include "struct/snode.h"
 #include "common/logging.h"
 #include "util/bit.h"
 /*
@@ -14,6 +14,19 @@ namespace redwood::lang {
 
 std::atomic<int> SNode::counter{0};
 
+template <typename T>
+T& SNode::operator[](int index){
+  RW_DEBUG("access index {} of SNode", index);
+  // only the place snode store the data
+  if this->type == SNodeType::place{
+    return this->data[index];
+  }
+  else{
+    RW_ERROR("SNode type is not place, cannot access data.");
+  }
+  if this
+
+}
 SNode &SNode::insert_children(SNodeType t) {
   RW_ASSERT(t != SNodeType::root);
 
@@ -214,30 +227,32 @@ int SNode::shape_along_axis(int i) const {
   return extractor.num_elements_from_root;
 }
 
-int64 SNode::read_int(const std::vector<int> &i) {
+/*
+int64_t SNode::read_int(const std::vector<int> &i) {
   return snode_rw_accessors_bank_->get(this).read_int(i);
 }
 
-uint64 SNode::read_uint(const std::vector<int> &i) {
+uint64_t SNode::read_uint(const std::vector<int> &i) {
   return snode_rw_accessors_bank_->get(this).read_uint(i);
 }
 
-float64 SNode::read_float(const std::vector<int> &i) {
+float SNode::read_float(const std::vector<int> &i) {
   return snode_rw_accessors_bank_->get(this).read_float(i);
 }
 
-void SNode::write_int(const std::vector<int> &i, int64 val) {
+void SNode::write_int(const std::vector<int> &i, int64_t val) {
   snode_rw_accessors_bank_->get(this).write_int(i, val);
 }
 
-void SNode::write_uint(const std::vector<int> &i, uint64 val) {
+void SNode::write_uint(const std::vector<int> &i, uint64_t val) {
   snode_rw_accessors_bank_->get(this).write_uint(i, val);
 }
 
-void SNode::write_float(const std::vector<int> &i, float64 val) {
+void SNode::write_float(const std::vector<int> &i, float val) {
   snode_rw_accessors_bank_->get(this).write_float(i, val);
 }
 
+*/
 
 
 SNode::SNode(int depth,
@@ -245,7 +260,7 @@ SNode::SNode(int depth,
     : depth(depth),
       type(t) {
   id = counter++;
-  node_type_name = get_node_type_name();
+  //node_type_name = get_node_type_name();
   num_active_indices = 0;
   std::memset(physical_index_position, -1, sizeof(physical_index_position));
   parent = nullptr;
@@ -259,9 +274,11 @@ SNode::SNode(const SNode &) {
                        // definition here to make pybind11 happy.
 }
 
+/*
 std::string SNode::get_node_type_name() const {
   return fmt::format("S{}", id);
 }
+*/
 
 /*
 std::string SNode::get_node_type_name_hinted() const {

@@ -1,7 +1,7 @@
 // Codegen for the hierarchical data structure
 #pragma once
 
-#include "ir/snode.h"
+#include "struct/snode.h"
 
 namespace redwood::lang {
 
