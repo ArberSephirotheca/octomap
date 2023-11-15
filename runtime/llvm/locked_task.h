@@ -3,29 +3,31 @@
 
 using Ptr = uint8_t*;
 
-int atomic_max_i32(Ptr dest, int val){
-  int old = *(int *)dest;
-  while (old < val) {
-    old = std::atomic_compare_exchange_strong((int *)dest, old, val);
+int atomic_max_i32(std::atomic<int>& dest, int val){
+  int old = dest.load();
+
+  if (val > old) {
+    dest.compare_exchange_strong(old, val);
   }
   return old;
 
 }
-void mutex_lock_i32(Ptr mutex){
-  while(std::atomic_exchange((int32_t *)mutex, 1) == 1);
+void mutex_lock_i32(std::atomic<bool>& mutex){
+  while(std::atomic_exchange(&mutex, true) == true);
 }
-void mutex_unlock_i32(Ptr mutex) {
-  std::atomic_exchange((int32_t *)mutex, 0);
+void mutex_unlock_i32(std::atomic<bool>& mutex) {
+  std::atomic_exchange(&mutex, false);
 }
 template <typename T, typename G>
 class lock_guard {
  public:
-  lock_guard(Ptr lock, const T &func, const G &test) {
-#if ARCH_x64 || ARCH_arm64
+  lock_guard(std::atomic<bool> lock, const T &func, const G &test) {
+//#if ARCH_x64 || ARCH_arm64
     mutex_lock_i32(lock);
     if (test())
       func();
     mutex_unlock_i32(lock);
+/*
 #else
     // CUDA
 
@@ -47,7 +49,7 @@ class lock_guard {
       // devices has undefined behavior (deadlock or not), if more than one
       // threads in a warp try to acquire the same lock.
       // Therefore we need a serialization within a warp
-      /*
+      
       bool done = false;
       while (!done) {
         if (atomic_exchange_i32((i32 *)lock, 1) == 1) {
@@ -56,7 +58,7 @@ class lock_guard {
           mutex_unlock_i32(lock);
         }
       }
-      */
+      
       auto fast = false;
       if (fast) {
         auto active_mask = cuda_active_mask();
@@ -81,6 +83,7 @@ class lock_guard {
       body();
     }
 #endif  // CUDA
+*/
   }
 };
 

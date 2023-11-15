@@ -8,7 +8,10 @@ target_sources(${STRUCT_REDWOOD}
     struct.cpp
   )
 
+  target_compile_features(struct_redwood PUBLIC cxx_std_17)
+
 target_include_directories(${STRUCT_REDWOOD}
   PRIVATE
     ${PROJECT_SOURCE_DIR}
   )
+  target_link_libraries(struct_redwood PRIVATE llvm_runtime)

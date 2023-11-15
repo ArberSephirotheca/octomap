@@ -4,6 +4,8 @@
 #include "struct/snode.h"
 #include "common/logging.h"
 #include "util/bit.h"
+#include "runtime/llvm/runtime.h"
+#include "runtime/llvm/node_dynamic.h"
 /*
 #include "redwood/ir/ir.h"
 #include "redwood/ir/statements.h"
@@ -14,23 +16,44 @@ namespace redwood::lang {
 
 std::atomic<int> SNode::counter{0};
 
-template <typename T>
-T& SNode::operator[](int index){
-  RW_DEBUG("access index {} of SNode", index);
-  // only the place snode store the data
-  if this->type == SNodeType::place{
-    return this->data[index];
+using Ptr = uint8_t *;
+
+
+Ptr SNode::operator[](int index){
+  Ptr ptr = nullptr;
+  if (this->type == SNodeType::place){
+    // get the parent node, that is where the data is stored
+    auto parent = this->parent;
+    if (parent->type == SNodeType::dynamic){
+      auto dynamic = static_cast<DynamicNode*>(parent);
+      ptr =  dynamic->Dynamic_lookup_element(index);
+      // not actiavte yet(or allocating yet, allocate first and then lookup again)
+      if (ptr == nullptr){
+        dynamic->Dynamic_activate(index);
+        ptr =  dynamic->Dynamic_lookup_element(index);
+    }
+    }
+  } else if (this->type == SNodeType::root){
+    RW_ERROR("SNode type is root, cannot access data.");
+  } else if (this->type == SNodeType::dynamic){
+    auto dynamic = static_cast<DynamicNode*>(this);
+    ptr = dynamic->Dynamic_lookup_element(index);
   }
   else{
     RW_ERROR("SNode type is not place, cannot access data.");
   }
-  if this
-
+  return ptr;
 }
+
+
 SNode &SNode::insert_children(SNodeType t) {
   RW_ASSERT(t != SNodeType::root);
-
-  auto new_ch = std::make_unique<SNode>(depth + 1, t);
+  std::unique_ptr<SNode> new_ch{nullptr};
+   if (t == SNodeType::dynamic){
+    new_ch = std::make_unique<DynamicNode>(depth + 1, t);
+  }else{
+    new_ch = std::make_unique<SNode>(depth + 1, t);
+  }
   new_ch->parent = this;
   new_ch->is_path_all_dense = (is_path_all_dense && !new_ch->need_activation());
   for (int i = 0; i < redwood_max_num_indices; i++) {
@@ -66,16 +89,6 @@ SNode &SNode::create_node(std::vector<Axis> axes,
             "axes and sizes must have the same size, but got {} and {}.",
             axes.size(), sizes.size()));
             */
-  }
-
-  if (type == SNodeType::hash && depth != 0) {
-    RW_ERROR("hashed node must be child of root due to initialization "
-                 "memset limitation.");
-                 /*
-    ErrorEmitter(redwoodRuntimeError(), &dbg_info,
-                 "hashed node must be child of root due to initialization "
-                 "memset limitation.");
-                 */
   }
 
   auto &new_node = insert_children(type);

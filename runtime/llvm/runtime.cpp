@@ -1,7 +1,7 @@
 #include "runtime/llvm/runtime.h"
 #include "struct/snode_types.h"
 //#include "runtime/llvm/locked_task.h"
-//#include "runtime/llvm/node_dynamic.h"
+#include "runtime/llvm/node_dynamic.h"
 namespace redwood{
   namespace runtime{
 
@@ -23,19 +23,6 @@ using parallel_for_type = void (*)(void *thread_pool,
 
 
 
-
-void initialize_struct_meta(redwood::lang::SNode* snode, StructMeta* meta){
-  // TODO： unimplemented
-  if(snode->type == redwood::lang::SNodeType::dynamic){
-    
-  }
-  meta->snode_id  snd
-  meta->element_size = get_type_size(snode);
-}
-
-std::size_t get_type_size(redwood::lang::SNode* snode){
-  return sizeof(snode->data_type);
-}
 void ListManager::touch_chunk(int chunk_id) {
   if (!chunks[chunk_id]){
     auto chunk_ptr = runtime->allocate_aligned(
@@ -144,6 +131,7 @@ Ptr LLVMRuntime::allocate_from_reserved_memory(
   return ret;
 }
 */
+
 // External API
 // [ON HOST] CPU backend
 // [ON DEVICE] CUDA/AMDGPU backend

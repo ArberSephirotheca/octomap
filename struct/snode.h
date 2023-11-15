@@ -12,9 +12,14 @@
 //#include "redwood/ir/type.h"
 //#include "redwood/program/snode_expr_utils.h"
 
-namespace redwood::lang {
+namespace redwood{
+  namespace runtime{
+    class LLVMRuntime;
+  }
+namespace lang {
+
+using Ptr = uint8_t*;
 class Program;
-class SNodeRwAccessorsBank;
 
 /**
  * Dimension (or axis) of a tensor.
@@ -94,6 +99,7 @@ class SNode {
   static std::atomic<int> counter;
   int id{0};
   int depth{0};
+  
 
   std::string name;
   // Product of the |shape| of all the activated axes identified by
@@ -127,10 +133,11 @@ class SNode {
 
   ~SNode() = default;
 
-  template<typename T>
-  T& operator[](int index);
-  
+ 
+  Ptr operator[](int index);
+
   std::string node_type_name;
+  redwood::runtime::LLVMRuntime* runtime;
   SNodeType type;
   bool _morton{false};
 
@@ -263,7 +270,7 @@ class SNode {
 
   bool has_allocator() const {
     return type == SNodeType::pointer || type == SNodeType::hash ||
-           type == SNodeType::root;
+           type == SNodeType::root || type==SNodeType::dynamic;
   }
 
   bool need_activation() const;
@@ -352,8 +359,15 @@ class SNode {
     counter = 0;
   }
 
+  virtual void set_cell_size_bytes(std::size_t size){
+    if(this->type == SNodeType::place && parent->type == SNodeType::dynamic){
+      parent->set_cell_size_bytes(size);
+    }
+    cell_size_bytes = size;
+  }
  private:
   int snode_tree_id_{0};
 };
 
-}  // namespace redwood::lang
+}  // namespace redwood
+} // namespace lang

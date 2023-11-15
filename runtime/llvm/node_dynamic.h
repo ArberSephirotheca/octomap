@@ -1,120 +1,39 @@
 #pragma once
-#include "locked_task.h"
-#include "runtime/llvm/runtime.h"
+#include "struct/snode.h"
 
-struct DynamicNode {
-  int32_t lock;
-  int32_t n;
-  int32_t ptr;
+namespace redwood::lang{
+class DynamicNode: public SNode {
+public:
+DynamicNode(int depth,
+        SNodeType t)
+    : SNode(depth, t){
+  ptr = nullptr;
+  lock = false;
+  n = 0;
+}
+void Dynamic_activate(int i);
+
+
+void Dynamic_deactivate();
+
+Ptr Dynamic_allocate(int32_t *len);
+
+bool Dynamic_is_active(int i) {
+  return i < n;
+}
+
+Ptr Dynamic_lookup_element( int i);
+
+int32_t Dynamic_get_num_elements() {
+  return n;
+}
+
+//void set_cell_size_bytes(std::size_t size) override;
+private:
+  std::atomic<bool> lock;
+  // num of elements
+  std::atomic<int> n;
+  // pointer to chunk
+  Ptr ptr;
 };
-
-// Specialized Attributes and functions
-struct DynamicMeta : public StructMeta {
-  int chunk_size;
-};
-
-
-void Dynamic_activate(Ptr meta_, Ptr node_, int i) {
-  auto meta = (DynamicMeta *)(meta_);
-  auto node = (DynamicNode *)(node_);
-  // We need to not only update node->n, but also make sure the chunk containing
-  // element i is allocated.
-  atomic_max_i32(&node->n, i + 1);
-  int chunk_start = 0;
-  auto p_chunk_ptr = &node->ptr;
-  auto chunk_size = meta->chunk_size;
-  while (true) {
-    if (*p_chunk_ptr == nullptr) {
-      locked_task(Ptr(&node->lock), [&] {
-        if (*p_chunk_ptr == nullptr) {
-          auto rt = meta->context->runtime;
-          auto alloc = rt->node_allocators[meta->snode_id];
-          *p_chunk_ptr = alloc->allocate();
-        }
-      });
-    }
-    if (i < chunk_start + chunk_size) {
-      return;
-    }
-    p_chunk_ptr = (Ptr *)*p_chunk_ptr;
-    chunk_start += chunk_size;
-  }
-}
-
-void Dynamic_deactivate(Ptr meta_, Ptr node_) {
-  auto meta = (DynamicMeta *)(meta_);
-  auto node = (DynamicNode *)(node_);
-  if (node->n > 0) {
-    locked_task(Ptr(&node->lock), [&] {
-      node->n = 0;
-      auto p_chunk_ptr = &node->ptr;
-      auto rt = meta->runtime;
-      auto alloc = rt->node_allocators[meta->snode_id];
-      while (*p_chunk_ptr) {
-        alloc->recycle(*p_chunk_ptr);
-        p_chunk_ptr = (Ptr *)*p_chunk_ptr;
-      }
-      node->ptr = nullptr;
-    });
-  }
-}
-
-Ptr Dynamic_allocate(Ptr meta_, Ptr node_, i32 *len) {
-  auto meta = (DynamicMeta *)(meta_);
-  auto node = (DynamicNode *)(node_);
-  auto chunk_size = meta->chunk_size;
-  auto i = atomic_add_i32(&node->n, 1);
-  *len = i;
-  int chunk_start = 0;
-  auto p_chunk_ptr = &node->ptr;
-  while (true) {
-    if (*p_chunk_ptr == nullptr) {
-      locked_task(Ptr(&node->lock), [&] {
-        if (*p_chunk_ptr == nullptr) {
-          auto rt = meta->context->runtime;
-          auto alloc = rt->node_allocators[meta->snode_id];
-          *p_chunk_ptr = alloc->allocate();
-        }
-      });
-    }
-    if (i < chunk_start + chunk_size) {
-      return *p_chunk_ptr + sizeof(Ptr) +
-             (i - chunk_start) * meta->element_size;
-    }
-    p_chunk_ptr = (Ptr *)(*p_chunk_ptr);
-    chunk_start += chunk_size;
-  }
-  // Unreachable
-  return nullptr;
-}
-
-bool Dynamic_is_active(Ptr meta_, Ptr node_, int i) {
-  auto node = (DynamicNode *)(node_);
-  return i < node->n;
-}
-
-Ptr Dynamic_lookup_element(Ptr meta_, Ptr node_, int i) {
-  auto meta = (DynamicMeta *)(meta_);
-  auto node = (DynamicNode *)(node_);
-  if (Dynamic_is_active(meta_, node_, i)) {
-    int chunk_start = 0;
-    auto chunk_ptr = node->ptr;
-    auto chunk_size = meta->chunk_size;
-    while (true) {
-      if (i < chunk_start + chunk_size) {
-        auto addr =
-            chunk_ptr + sizeof(Ptr) + (i - chunk_start) * meta->element_size;
-        return addr;
-      }
-      chunk_ptr = *(Ptr *)chunk_ptr;
-      chunk_start += chunk_size;
-    }
-  } else {
-    return (meta->context->runtime)->ambient_elements[meta->snode_id];
-  }
-}
-
-int32_t Dynamic_get_num_elements(Ptr meta_, Ptr node_) {
-  auto node = (DynamicNode *)(node_);
-  return node->n;
-}
+}  // namespace rewood::lang

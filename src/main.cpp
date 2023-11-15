@@ -803,13 +803,18 @@ void run_snode(){
     auto compile_config = CompileConfig();
 
     auto executor = LlvmRuntimeExecutor(compile_config);
-    int n = 20;
+    //int n = 20;
     uint64_t * result_buffer= nullptr;
     executor.materialize_runtime(&result_buffer);
     auto *root = new SNode(0, SNodeType::root);
-    auto *pointer = &root->dynamic(Axis(0), 1024, 32);
-    auto *place = &pointer->insert_children(SNodeType::place);
+    auto *dynamic = &root->dynamic(Axis(0), 32, 4);
+    auto *dynmaic_2 = &dynamic->dynamic(Axis(1), 32, 4);
+    auto *place = &dynmaic_2->insert_children(SNodeType::place);
+    place->set_cell_size_bytes(sizeof(OctreeNode));
     executor.add_snode_tree(std::unique_ptr<SNode>(root));
+    //auto cell = *place;
+    //auto value = (OctreeNode*)cell[10];
+    //*value = OctreeNode();
     
 }
 

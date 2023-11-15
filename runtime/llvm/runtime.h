@@ -12,6 +12,7 @@
 #include "common/arithmetic.h"
 #include "util/bit.h"
 #include "struct/snode.h"
+//#include "runtime/llvm/node_dynamic.h"
 //#include "inc/cuda_kernel_utils.inc.h"
 
 
@@ -69,26 +70,6 @@ struct StructMeta {
   LLVMRuntime *runtime;
 };
 
-Ptr emit_struct_meta(redwood::lang::SNode* snode){
-  emit_struct_meta_object(snode);
-}
-
-std::unique_ptr<StructMeta> emit_struct_meta_object(redwood::lang::SNode* snode){
-  std::unique_ptr<StructMeta> meta;
-  std::size_t element_size;
-  int64_t max_num_elemnts;
-  int32_t snode_id;
-
-  if(snode->type == redwood::lang::SNodeType::root){
-    
-  }else if (snode->type == redwood::lang::SNodeType::dynamic){
-
-  } else{
-    RW_NOT_IMPLEMENTED;
-  }
-  return meta;
-}
-
 
 struct Element {
   Ptr element;
@@ -103,10 +84,6 @@ struct RandState {
   uint32_t w;
   int32_t lock;
 };
-
-void initialize_struct_meta(redwood::lang::SNode* snode, StructMeta* meta);
-
-std::size_t get_type_size(redwood::lang::SNode* snode);
 
 void initialize_rand_state(RandState *state, uint32_t i);
 
@@ -203,6 +180,9 @@ struct ListManager {
     }
     return -1;
   }
+  void set_element_size_bytes(int32_t size){
+    element_size = size;
+  }
 };
 
 
@@ -270,6 +250,7 @@ struct LLVMRuntime {
     new (ptr) T(std::forward<Args>(args)...);
     return ptr;
   }
+
 };
 
 
@@ -351,6 +332,11 @@ struct NodeManager {
       free_list->push_back(idx);
     }
     recycled_list->clear();
+  }
+  void set_element_size_bytes(int32_t size){
+    RW_INFO("NodeManager: set element size bytes: %d", size);
+    element_size = size;
+    this->data_list->set_element_size_bytes(size);
   }
 };
 
