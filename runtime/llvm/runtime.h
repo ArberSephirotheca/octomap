@@ -119,7 +119,11 @@ struct ListManager {
 
   int32_t reserve_new_element() {
     // TODO: conisder using llvm::AtomicRMWInst for thread safety
-    auto i = num_elements+1;//llvm::AtomicRMWInst(&num_elements, 1);
+    //llvm::AtomicRMWInst(&num_elements, 1);
+    RW_INFO("ListManager: reserve new element");
+    auto i = num_elements;
+    num_elements += 1;
+    
     auto chunk_id = i >> log2chunk_num_elements;
     touch_chunk(chunk_id);
     return i;
@@ -293,9 +297,11 @@ struct NodeManager {
   }
 
   Ptr allocate() {
+    RW_INFO("NodeManager: allocate");
     int old_cursor = (&free_list_used, 1);
     int32_t l;
     if (old_cursor >= free_list->size()) {
+      RW_INFO("NodeManager: running out of free list, allocate new element");
       // running out of free list. allocate new.
       l = data_list->reserve_new_element();
     } else {

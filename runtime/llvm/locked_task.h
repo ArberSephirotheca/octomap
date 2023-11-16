@@ -3,24 +3,15 @@
 
 using Ptr = uint8_t*;
 
-int atomic_max_i32(std::atomic<int>& dest, int val){
-  int old = dest.load();
+int atomic_max_i32(std::atomic<int>& dest, int val);
+void mutex_lock_i32(std::atomic<bool>& mutex);
+void mutex_unlock_i32(std::atomic<bool>& mutex);
 
-  if (val > old) {
-    dest.compare_exchange_strong(old, val);
-  }
-  return old;
 
-}
-void mutex_lock_i32(std::atomic<bool>& mutex){
-  while(std::atomic_exchange(&mutex, true) == true);
-}
-void mutex_unlock_i32(std::atomic<bool>& mutex) {
-  std::atomic_exchange(&mutex, false);
-}
 template <typename T, typename G>
 class lock_guard {
  public:
+  // TODO: do not use atomic here
   lock_guard(std::atomic<bool> lock, const T &func, const G &test) {
 //#if ARCH_x64 || ARCH_arm64
     mutex_lock_i32(lock);

@@ -150,82 +150,95 @@ class SNode {
 
   SNode &create_node(std::vector<Axis> axes,
                      std::vector<int> sizes,
-                     SNodeType type
+                     SNodeType type,
+                     redwood::runtime::LLVMRuntime* runtime
                      /*const DebugInfo &dbg_info = DebugInfo()*/);
 
   // SNodes maintains how flattened index bits are taken from indices
   SNode &dense(const std::vector<Axis> &axes,
-               const std::vector<int> &sizes
+               const std::vector<int> &sizes,
+               redwood::runtime::LLVMRuntime* runtime
                /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return create_node(axes, sizes, SNodeType::dense/*, dbg_info*/);
+    return create_node(axes, sizes, SNodeType::dense/*, dbg_info*/, runtime);
   }
 
   SNode &dense(const std::vector<Axis> &axes,
-               int sizes
+               int sizes,
+               redwood::runtime::LLVMRuntime* runtime
                /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return create_node(axes, std::vector<int>{sizes}, SNodeType::dense
+    return create_node(axes, std::vector<int>{sizes}, SNodeType::dense, runtime
                        /*dbg_info*/);
   }
 
   SNode &dense(const Axis &axis,
-               int size
+               int size,
+               redwood::runtime::LLVMRuntime* runtime
               /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return SNode::dense(std::vector<Axis>{axis}, size/*, dbg_info*/);
+    return SNode::dense(std::vector<Axis>{axis}, size/*, dbg_info*/, runtime);
   }
 
   SNode &pointer(const std::vector<Axis> &axes,
-                 const std::vector<int> &sizes
+                 const std::vector<int> &sizes,
+                 redwood::runtime::LLVMRuntime* runtime
                  /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return create_node(axes, sizes, SNodeType::pointer/*, dbg_info*/);
+    return create_node(axes, sizes, SNodeType::pointer, runtime/*, dbg_info*/);
   }
 
   SNode &pointer(const std::vector<Axis> &axes,
-                 int sizes
+                 int sizes,
+                 redwood::runtime::LLVMRuntime* runtime
                  /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return create_node(axes, std::vector<int>{sizes}, SNodeType::pointer
+    return create_node(axes, std::vector<int>{sizes}, SNodeType::pointer, runtime
                        /*dbg_info*/);
   }
 
   SNode &pointer(const Axis &axis,
-                 int size
+                 int size,
+                 redwood::runtime::LLVMRuntime* runtime
                  /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return SNode::pointer(std::vector<Axis>{axis}, size/*, dbg_info*/);
+    return SNode::pointer(std::vector<Axis>{axis}, size/*, dbg_info*/, runtime);
   }
 
   SNode &bitmasked(const std::vector<Axis> &axes,
-                   const std::vector<int> &sizes
+                   const std::vector<int> &sizes,
+                   redwood::runtime::LLVMRuntime* runtime
                    /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return create_node(axes, sizes, SNodeType::bitmasked/*, dbg_info*/ );
+    return create_node(axes, sizes, SNodeType::bitmasked/*, dbg_info*/, runtime);
   }
 
   SNode &bitmasked(const std::vector<Axis> &axes,
-                   int sizes
+                   int sizes,
+                   redwood::runtime::LLVMRuntime* runtime
                    /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return create_node(axes, std::vector<int>{sizes}, SNodeType::bitmasked/*, dbg_info*/);
+    return create_node(axes, std::vector<int>{sizes}, SNodeType::bitmasked/*, dbg_info*/, runtime);
   }
 
   SNode &bitmasked(const Axis &axis,
-                   int size
+                   int size,
+                   redwood::runtime::LLVMRuntime* runtime
                    /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return SNode::bitmasked(std::vector<Axis>{axis}, size/*, dbg_info*/);
+    return SNode::bitmasked(std::vector<Axis>{axis}, size/*, dbg_info*/, runtime);
   }
 
   SNode &hash(const std::vector<Axis> &axes,
-              const std::vector<int> &sizes
+              const std::vector<int> &sizes,
+              redwood::runtime::LLVMRuntime* runtime
               /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return create_node(axes, sizes, SNodeType::hash/*, dbg_info*/);
+    return create_node(axes, sizes, SNodeType::hash/*, dbg_info*/, runtime);
   }
 
   SNode &hash(const std::vector<Axis> &axes,
-              int sizes
+              int sizes,
+              redwood::runtime::LLVMRuntime* runtime
               /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return create_node(axes, std::vector<int>{sizes}, SNodeType::hash/*, dbg_info*/);
+    return create_node(axes, std::vector<int>{sizes}, SNodeType::hash/*, dbg_info*/, runtime);
   }
 
   SNode &hash(const Axis &axis,
-              int size
+              int size,
+              redwood::runtime::LLVMRuntime* runtime
               /*const DebugInfo &dbg_info = DebugInfo()*/) {
-    return hash(std::vector<Axis>{axis}, size/*, dbg_info*/);
+    return hash(std::vector<Axis>{axis}, size/*, dbg_info*/, runtime);
   }
 
   std::string type_name() {
@@ -238,7 +251,8 @@ class SNode {
 */
   SNode &quant_array(const std::vector<Axis> &axes,
                      const std::vector<int> &sizes,
-                     int bits
+                     int bits,
+                     redwood::runtime::LLVMRuntime* runtime
                      /*const DebugInfo &dbg_info = DebugInfo()*/);
 
   void print();
@@ -247,7 +261,8 @@ class SNode {
 
   SNode &dynamic(const Axis &expr,
                  int n,
-                 int chunk_size
+                 int chunk_size,
+                 redwood::runtime::LLVMRuntime* runtime
                  /*const DebugInfo &dbg_info = DebugInfo()*/);
 
   SNode &morton(bool val = true) {
@@ -360,7 +375,7 @@ class SNode {
   }
 
   virtual void set_cell_size_bytes(std::size_t size){
-    if(this->type == SNodeType::place && parent->type == SNodeType::dynamic){
+    if(this->type == SNodeType::place && parent->type != SNodeType::root){
       parent->set_cell_size_bytes(size);
     }
     cell_size_bytes = size;

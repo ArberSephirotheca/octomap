@@ -1,7 +1,7 @@
 #include "runtime/llvm/runtime.h"
 #include "struct/snode_types.h"
-//#include "runtime/llvm/locked_task.h"
-#include "runtime/llvm/node_dynamic.h"
+//#include "runtime/llvm/node_dynamic.h"
+//#include "runtime/llvm/node_pointer.h"
 namespace redwood{
   namespace runtime{
 
@@ -24,13 +24,14 @@ using parallel_for_type = void (*)(void *thread_pool,
 
 
 void ListManager::touch_chunk(int chunk_id) {
+  RW_INFO("ListManager::touch_chunk");
   if (!chunks[chunk_id]){
     auto chunk_ptr = runtime->allocate_aligned(
             runtime->runtime_memory_chunk,
             max_num_elements_per_chunk * element_size, 4096, true);
     // TODO: make it atomic
     chunks[chunk_id] = chunk_ptr;
-    //std::atomic_exchange(&chunks[chunk_id], chunk_ptr);
+    //std::atomic_exchange((Ptr *)&chunks[chunk_id], chunk_ptr);
   }
   /*
   if (!chunks[chunk_id]) {
@@ -78,7 +79,6 @@ Ptr LLVMRuntime::allocate_aligned(PreallocatedMemoryChunk &memory_chunk,
   // TODO: make it atomic
   if (request)
     total_requested_memory += size;
-  //std::atomic_fetch_add(&total_requested_memory, size);
     //atomic_add_i64(&total_requested_memory, size);
 
   // TODO: do it later for CUDA
@@ -255,6 +255,7 @@ void runtime_get_memory_requirements(Ptr result_buffer,
 void runtime_NodeAllocator_initialize(LLVMRuntime *runtime,
                                       int snode_id,
                                       std::size_t node_size) {
+  RW_INFO("Create NodeManager for snode_id: {}", snode_id);
   runtime->node_allocators[snode_id] =
       runtime->create<NodeManager>(runtime, node_size, 1024 * 16);
 }

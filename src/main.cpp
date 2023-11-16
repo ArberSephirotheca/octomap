@@ -24,6 +24,8 @@
 #include "program/compile_config.h"
 #include "struct/snode.h"
 #include "common/arch.h"
+//#include "runtime/llvm/node_dynamic.h"
+#include "runtime/llvm/node_pointer.h"
 //#include "include/traditional_octree_cuda.hpp"
 #include "include/traditional_octree_cpu.hpp"
 #include "include/traditional_octree.hpp"
@@ -806,12 +808,22 @@ void run_snode(){
     //int n = 20;
     uint64_t * result_buffer= nullptr;
     executor.materialize_runtime(&result_buffer);
+    auto runtime = reinterpret_cast<redwood::runtime::LLVMRuntime*>(executor.get_llvm_runtime());
+    RW_ASSERT(runtime != nullptr);
     auto *root = new SNode(0, SNodeType::root);
-    auto *dynamic = &root->dynamic(Axis(0), 32, 4);
-    auto *dynmaic_2 = &dynamic->dynamic(Axis(1), 32, 4);
-    auto *place = &dynmaic_2->insert_children(SNodeType::place);
-    place->set_cell_size_bytes(sizeof(OctreeNode));
+    auto *node1 = &root->pointer(std::vector<Axis>{Axis(0), Axis(1), Axis(2)}, 32, runtime);
+    auto *place = &node1->insert_children(SNodeType::place);
+    place->set_cell_size_bytes(sizeof(float));
     executor.add_snode_tree(std::unique_ptr<SNode>(root));
+    auto *pointer = static_cast<PointerNode*>(node1);
+    RW_INFO("chunk size: {}",pointer->chunk_size);
+ 
+
+    RW_ASSERT(runtime->node_allocators[1] != nullptr);
+    pointer->Pointer_activate(5);
+    pointer->Pointer_activate(40);
+    //auto *cell = dynamic_2->Dynamic_lookup_element(3);
+    //auto *node = reinterpret_cast<OctreeNode*>(cell);
     //auto cell = *place;
     //auto value = (OctreeNode*)cell[10];
     //*value = OctreeNode();

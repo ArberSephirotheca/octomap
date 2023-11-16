@@ -6,6 +6,7 @@
 #include "util/bit.h"
 #include "runtime/llvm/runtime.h"
 #include "runtime/llvm/node_dynamic.h"
+#include "runtime/llvm/node_pointer.h"
 /*
 #include "redwood/ir/ir.h"
 #include "redwood/ir/statements.h"
@@ -74,7 +75,8 @@ SNode &SNode::insert_children(SNodeType t) {
 
 SNode &SNode::create_node(std::vector<Axis> axes,
                           std::vector<int> sizes,
-                          SNodeType type
+                          SNodeType type,
+                          redwood::runtime::LLVMRuntime *runtime
                           /**const DebugInfo &dbg_info*/) {
   if (sizes.size() == 1) {
     sizes = std::vector<int>(axes.size(), sizes[0]);
@@ -180,14 +182,17 @@ SNode &SNode::create_node(std::vector<Axis> axes,
                    */
     }
   }
+  //RW_ASSERT(runtime != nullptr);
+  new_node.runtime = runtime;
   return new_node;
 }
 
 SNode &SNode::dynamic(const Axis &expr,
                       int n,
-                      int chunk_size
+                      int chunk_size,
+                      redwood::runtime::LLVMRuntime* runtime
                       /*const DebugInfo &dbg_info*/) {
-  auto &snode = create_node({expr}, {n}, SNodeType::dynamic/*, dbg_info*/);
+  auto &snode = create_node({expr}, {n}, SNodeType::dynamic/*, dbg_info*/, runtime);
   snode.chunk_size = chunk_size;
   return snode;
 }
@@ -205,9 +210,10 @@ SNode &SNode::bit_struct(BitStructType *bit_struct_type,
 
 SNode &SNode::quant_array(const std::vector<Axis> &axes,
                           const std::vector<int> &sizes,
-                          int bits
+                          int bits,
+                          redwood::runtime::LLVMRuntime* runtime
                           /*const DebugInfo &dbg_info*/) {
-  auto &snode = create_node(axes, sizes, SNodeType::quant_array/*, dbg_info*/);
+  auto &snode = create_node(axes, sizes, SNodeType::quant_array/*, dbg_info*/, runtime);
   /*
   snode.physical_type =
       TypeFactory::get_instance().get_primitive_int_type(bits, false);

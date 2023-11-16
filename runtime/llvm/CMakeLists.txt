@@ -3,7 +3,9 @@
 add_library(llvm_runtime)
 target_sources(llvm_runtime
   PRIVATE
+    locked_task.cpp
     node_dynamic.cpp
+    node_pointer.cpp
     runtime.cpp
     llvm_runtime_executor.cpp
     #llvm_offline_cache.cpp

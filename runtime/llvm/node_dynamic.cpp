@@ -16,12 +16,19 @@ namespace redwood::lang
         {
             if (*p_chunk_ptr == nullptr)
             {
+              RW_INFO("p_chunk_ptr == nullptr for id: {}", this->id);
+              auto alloc = runtime->node_allocators[this->id];
+              if(alloc == nullptr){
+                
+              }
+          *p_chunk_ptr = alloc->allocate();
+              /*
                 locked_task(Ptr(&lock), [&]
                             {
         if (*p_chunk_ptr == nullptr) {
           auto alloc = runtime->node_allocators[this->id];
           *p_chunk_ptr = alloc->allocate();
-        } });
+        } });*/
             }
             if (i < chunk_start + chunk_size)
             {
