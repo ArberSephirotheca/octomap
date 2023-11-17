@@ -298,7 +298,8 @@ struct NodeManager {
 
   Ptr allocate() {
     RW_INFO("NodeManager: allocate");
-    int old_cursor = (&free_list_used, 1);
+    // todo: make it atomic
+    int old_cursor = free_list_used + 1;
     int32_t l;
     if (old_cursor >= free_list->size()) {
       RW_INFO("NodeManager: running out of free list, allocate new element");

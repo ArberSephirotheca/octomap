@@ -370,8 +370,8 @@ void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
       RW_TRACE("Initializing allocator for snode {} (node size {})", snode_id,
                node_size);
       redwood::runtime::runtime_NodeAllocator_initialize(llvm_runtime, snode_id, node_size);
-      RW_TRACE("Allocating ambient element for snode {} (node size {})",
-               snode_id, node_size);
+      //RW_TRACE("Allocating ambient element for snode {} (node size {})",
+      //         snode_id, node_size);
       redwood::runtime::runtime_allocate_ambient(llvm_runtime, snode_id, node_size);
     }
   }
@@ -622,7 +622,7 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
         config_.max_block_dim, 0, llvm_runtime_, starting_rand_state);
       */  
   } else {
-    RW_TRACE("Initializing {} random states (serially)", num_rand_states);
+    //RW_TRACE("Initializing {} random states (serially)", num_rand_states);
     auto llvm_runtime = static_cast<redwood::runtime::LLVMRuntime*>(llvm_runtime_);
     redwood::runtime::runtime_initialize_rand_states_serial(llvm_runtime, starting_rand_state);
   }

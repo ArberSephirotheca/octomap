@@ -804,24 +804,32 @@ void actual_work(int argc, char **argv){
 void run_snode(){
     auto compile_config = CompileConfig();
 
-    auto executor = LlvmRuntimeExecutor(compile_config);
-    //int n = 20;
+    auto executor = RuntimeExecutor(compile_config);
     uint64_t * result_buffer= nullptr;
     executor.materialize_runtime(&result_buffer);
-    auto runtime = reinterpret_cast<redwood::runtime::LLVMRuntime*>(executor.get_llvm_runtime());
+    auto runtime = reinterpret_cast<redwood::runtime::Runtime*>(executor.get_runtime());
     RW_ASSERT(runtime != nullptr);
     auto *root = new SNode(0, SNodeType::root);
-    auto *node1 = &root->pointer(std::vector<Axis>{Axis(0), Axis(1), Axis(2)}, 32, runtime);
-    auto *place = &node1->insert_children(SNodeType::place);
+    // array[32][32][32]
+    auto *dynamic = &root->dynamic(Axis(0), 1024, 32);
+    //auto *node1 = &root->pointer(std::vector<Axis>{Axis(0), Axis(1), Axis(2)}, 32, runtime);
+    auto *place = &dynamic->insert_children(SNodeType::place);
+    //root node->pointer node-> place node(leaf node)
+    //pointer node: array[32][32][32], only activated cell is allocated
     place->set_cell_size_bytes(sizeof(float));
     executor.add_snode_tree(std::unique_ptr<SNode>(root));
+
+
     auto *pointer = static_cast<PointerNode*>(node1);
-    RW_INFO("chunk size: {}",pointer->chunk_size);
- 
 
     RW_ASSERT(runtime->node_allocators[1] != nullptr);
-    pointer->Pointer_activate(5);
-    pointer->Pointer_activate(40);
+    // euqivalent to place[5];
+    dynamic->Pointer_activate(5);
+    // euqivalent to place[20];
+    dynamic->pointer_activate(20);
+    // euqivalent to place[40];
+    dynamic->Pointer_activate(40);
+    
     //auto *cell = dynamic_2->Dynamic_lookup_element(3);
     //auto *node = reinterpret_cast<OctreeNode*>(cell);
     //auto cell = *place;

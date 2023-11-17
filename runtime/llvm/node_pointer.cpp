@@ -5,7 +5,7 @@
 namespace redwood::lang
 {
 bool PointerNode::is_representative(uint32_t mask, uint64_t value) {
-    RW_INFO("PointerNode::is_representative");
+    //RW_INFO("PointerNode::is_representative");
 /*
 #if defined(ARCH_cuda)
   // If many threads in the mask share the same value, simply
@@ -36,16 +36,16 @@ bool PointerNode::is_representative(uint32_t mask, uint64_t value) {
 
 void PointerNode::Pointer_activate(int i) {
   auto num_elements = Pointer_get_num_elements();
-  RW_INFO("Pointer_activate: num_elements: {}", num_elements);
+  RW_INFO("Pointer_activate: num of max elements: {}", num_elements);
   volatile Ptr lock = (Ptr)this + 8 * i;
-  RW_INFO("Pointer_activate: lock");
+ // RW_INFO("Pointer_activate: lock");
   volatile Ptr *data_ptr = (Ptr *)((Ptr)this + 8 * (num_elements + i));
   if (*data_ptr == nullptr) {
-    RW_INFO("Pointer_activate: data_ptr == nullptr");
+    //RW_INFO("Pointer_activate: data_ptr == nullptr");
     // The cuda_ calls will return 0 or do noop on CPUs
     //uint32_t mask = cuda_active_mask();
     if (is_representative(0, (uint64_t)lock)) {
-        /*
+        
       locked_task(
           lock,
           [&] {
@@ -58,13 +58,13 @@ void PointerNode::Pointer_activate(int i) {
            // atomic_exchange_u64((uint64_t *)data_ptr, allocated);
           },
           [&]() { return *data_ptr == nullptr; });
-          */
-            RW_INFO("Pointer_activate: allocator: {}", this->id);
+          
+            //RW_INFO("Pointer_activate: allocator: {}", this->id);
             RW_ASSERT(runtime != nullptr);
             auto alloc = runtime->node_allocators[this->id];
-            RW_INFO("Pointer_activate: alloc");
+            //RW_INFO("Pointer_activate: alloc");
             auto allocated = (uint64_t)alloc->allocate();
-            RW_INFO("Pointer_activate: allocated");
+            //RW_INFO("Pointer_activate: allocated");
             // TODO: Not sure if we really need atomic_exchange here,
             // just to be safe.
             std::memcpy((void *)data_ptr, &allocated, sizeof(uint64_t));
