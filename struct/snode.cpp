@@ -25,21 +25,19 @@ Ptr SNode::operator[](int index){
   if (this->type == SNodeType::place){
     // get the parent node, that is where the data is stored
     auto parent = this->parent;
-    if (parent->type == SNodeType::dynamic){
-      auto dynamic = static_cast<DynamicNode*>(parent);
-      ptr =  dynamic->Dynamic_lookup_element(index);
+    if (parent->type == SNodeType::pointer){
+      auto pointer = static_cast<PointerNode*>(parent);
+      ptr =  pointer->Pointer_lookup_element(index);
       // not actiavte yet(or allocating yet, allocate first and then lookup again)
       if (ptr == nullptr){
-        dynamic->Dynamic_activate(index);
-        ptr =  dynamic->Dynamic_lookup_element(index);
+        pointer->Pointer_activate(index);
+        ptr =  pointer->Pointer_lookup_element(index);
     }
     }
   } else if (this->type == SNodeType::root){
     RW_ERROR("SNode type is root, cannot access data.");
-  } else if (this->type == SNodeType::dynamic){
-    auto dynamic = static_cast<DynamicNode*>(this);
-    ptr = dynamic->Dynamic_lookup_element(index);
   }
+  // TODO: add
   else{
     RW_ERROR("SNode type is not place, cannot access data.");
   }

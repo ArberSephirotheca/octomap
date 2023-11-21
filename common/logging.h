@@ -4,7 +4,7 @@
 #include <cstring>
 #include <spdlog/common.h>
 #include <spdlog/fmt/fmt.h>
-
+#include <spdlog/fmt/ostr.h>
 namespace spdlog {
 class logger;
 }

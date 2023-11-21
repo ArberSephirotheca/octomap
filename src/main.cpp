@@ -12,8 +12,8 @@
 #include <random>
 #include <omp.h>
 #include <execution>
-#include <librealsense2/rs.hpp>
-#include <librealsense2/h/rs_types.h>
+//#include <librealsense2/rs.hpp>
+//#include <librealsense2/h/rs_types.h>
 #include "include/binary_radix_tree.hpp"
 #include "include/morton_util.hpp"
 #include "include/octree.hpp"
@@ -804,16 +804,16 @@ void actual_work(int argc, char **argv){
 void run_snode(){
     auto compile_config = CompileConfig();
 
-    auto executor = RuntimeExecutor(compile_config);
+    auto executor = LlvmRuntimeExecutor(compile_config);
     uint64_t * result_buffer= nullptr;
     executor.materialize_runtime(&result_buffer);
-    auto runtime = reinterpret_cast<redwood::runtime::Runtime*>(executor.get_runtime());
+    auto runtime = reinterpret_cast<redwood::runtime::LLVMRuntime*>(executor.get_llvm_runtime());
     RW_ASSERT(runtime != nullptr);
     auto *root = new SNode(0, SNodeType::root);
     // array[32][32][32]
-    auto *dynamic = &root->dynamic(Axis(0), 1024, 32);
-    //auto *node1 = &root->pointer(std::vector<Axis>{Axis(0), Axis(1), Axis(2)}, 32, runtime);
-    auto *place = &dynamic->insert_children(SNodeType::place);
+    //auto *dynamic = &root->dynamic(Axis(0), 1024, 32);
+    auto *node1 = &root->pointer(std::vector<Axis>{Axis(0), Axis(1), Axis(2)}, 32, runtime);
+    auto *place = &node1->insert_children(SNodeType::place);
     //root node->pointer node-> place node(leaf node)
     //pointer node: array[32][32][32], only activated cell is allocated
     place->set_cell_size_bytes(sizeof(float));
@@ -824,11 +824,11 @@ void run_snode(){
 
     RW_ASSERT(runtime->node_allocators[1] != nullptr);
     // euqivalent to place[5];
-    dynamic->Pointer_activate(5);
+    pointer->Pointer_activate(4);
     // euqivalent to place[20];
-    dynamic->pointer_activate(20);
+   // pointer->Pointer_activate(20);
     // euqivalent to place[40];
-    dynamic->Pointer_activate(40);
+   // pointer->Pointer_activate(40);
     
     //auto *cell = dynamic_2->Dynamic_lookup_element(3);
     //auto *node = reinterpret_cast<OctreeNode*>(cell);

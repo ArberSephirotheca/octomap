@@ -8,7 +8,7 @@ DynamicNode(int depth,
         SNodeType t)
     : SNode(depth, t){
   ptr = nullptr;
-  lock = false;
+  lock = nullptr;
   n = 0;
 }
 void Dynamic_activate(int i);
@@ -30,7 +30,7 @@ int32_t Dynamic_get_num_elements() {
 
 //void set_cell_size_bytes(std::size_t size) override;
 private:
-  std::atomic<bool> lock;
+  std::atomic<uint64_t>* lock;
   // num of elements
   std::atomic<int> n;
   // pointer to chunk

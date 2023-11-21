@@ -217,6 +217,7 @@ void runtime_initialize_snodes(LLVMRuntime *runtime,
   }
   for (int i = root_id; i < root_id + num_snodes; i++) {
     // TODO: some SNodes do not actually need an element list.
+    RW_INFO("Create ListManager for snode_id: {}", i);
     runtime->element_lists[i] =
         runtime->create<ListManager>(runtime, sizeof(Element), 1024 * 64);
   }

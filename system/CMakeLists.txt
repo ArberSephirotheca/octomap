@@ -8,6 +8,8 @@ target_sources(${SYSTEM_REDWOOD}
   target_compile_features(system_redwood PUBLIC cxx_std_17)
 
 target_include_directories(${SYSTEM_REDWOOD}
+  PUBLIC
+  ${PROJECT_SOURCE_DIR}/extern/spdlog/include
   PRIVATE
     ${PROJECT_SOURCE_DIR}
   )

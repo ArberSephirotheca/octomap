@@ -92,6 +92,13 @@
         "*.txx": "cpp",
         "span": "cpp",
         "format": "cpp",
-        "any": "cpp"
+        "any": "cpp",
+        "csignal": "cpp",
+        "codecvt": "cpp",
+        "forward_list": "cpp",
+        "future": "cpp",
+        "__nullptr": "cpp",
+        "__string": "cpp",
+        "*.ipp": "cpp"
     }
 }

@@ -2,7 +2,7 @@
 
 #include <chrono>
 #include <iostream>
-#include <librealsense2/rs.hpp>
+//#include <librealsense2/rs.hpp>
 #include <pcl/point_types.h>
 #include <pcl/filters/passthrough.h>
 
@@ -250,7 +250,7 @@ void PrefixSumThreaded(const std::vector<int>& edge_counts, std::vector<int>& oc
 }
 
 using pcl_ptr = pcl::PointCloud<pcl::PointXYZ>::Ptr;
-
+/*
 pcl_ptr points_to_pcl(const rs2::points& points)
 {
     pcl_ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -271,3 +271,4 @@ pcl_ptr points_to_pcl(const rs2::points& points)
 
     return cloud;
 }
+*/

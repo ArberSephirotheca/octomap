@@ -13,5 +13,6 @@ target_sources(${STRUCT_REDWOOD}
 target_include_directories(${STRUCT_REDWOOD}
   PRIVATE
     ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/extern/spdlog/include
   )
   target_link_libraries(struct_redwood PRIVATE llvm_runtime)

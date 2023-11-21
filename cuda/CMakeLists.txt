@@ -15,7 +15,7 @@ include_directories(${CUDA_INCLUDE_DIRS})
 target_include_directories(${CUDA_REDWOOD}
   PRIVATE
     ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/external/spdlog/include
+    ${PROJECT_SOURCE_DIR}/extern/spdlog/include
   )
 
 target_link_libraries(${CUDA_REDWOOD} PRIVATE  ${CUDA_LIBRARIES} llvm_redwood) #interop_rhi)

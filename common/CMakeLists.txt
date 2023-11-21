@@ -18,7 +18,7 @@ target_sources(${COMMON_REDWOOD}
 
 target_include_directories(${COMMON_REDWOOD}
   PUBLIC
-    ${PROJECT_SOURCE_DIR}/external/spdlog/include
+    ${PROJECT_SOURCE_DIR}/extern/spdlog/include
   PRIVATE
     ${PROJECT_SOURCE_DIR}
   )

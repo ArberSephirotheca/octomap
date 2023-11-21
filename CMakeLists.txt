@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(my_app LANGUAGES CXX)
+project(my_app LANGUAGES C CXX)
 
 add_executable(my_app)
 add_subdirectory(common)
@@ -30,7 +30,7 @@ target_include_directories(
 target_compile_features(my_app PUBLIC cxx_std_17)
 target_compile_options(my_app PRIVATE -Wall -Wextra -Wpedantic -ltbb)
 # Add realsense2
-find_package(realsense2 REQUIRED)
+#find_package(realsense2 REQUIRED)
 
 find_package(LLVM REQUIRED CONFIG)
 
@@ -56,7 +56,7 @@ endif()
 
 # Link OpenMP library
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX ${realsense2_LIBRARY} ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS}
+    target_link_libraries(my_app PRIVATE OpenMP::OpenMP_CXX  ${PCL_LIBRARIES} ${TBB_IMPORTED_TARGETS} #${realsense2_LIBRARY}}
     common_redwood llvm_redwood cpu_redwood cuda_redwood llvm_runtime program_redwood struct_redwood system_redwood)
 endif()
 

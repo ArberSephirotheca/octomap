@@ -4,7 +4,7 @@ add_library(llvm_runtime)
 target_sources(llvm_runtime
   PRIVATE
     locked_task.cpp
-    node_dynamic.cpp
+    #node_dynamic.cpp
     node_pointer.cpp
     runtime.cpp
     llvm_runtime_executor.cpp
@@ -20,7 +20,7 @@ target_sources(llvm_runtime
 target_include_directories(llvm_runtime
   PRIVATE
     ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/external/spdlog/include
+    ${PROJECT_SOURCE_DIR}/extern/spdlog/include
     #${LLVM_INCLUDE_DIRS}
   )
   find_package(CUDA REQUIRED)

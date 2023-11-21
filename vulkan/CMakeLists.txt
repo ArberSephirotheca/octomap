@@ -8,6 +8,6 @@ target_sources(${VULKAN_REDWOOD}
 target_include_directories(${VULKAN_REDWOOD}
   PRIVATE
     ${PROJECT_SOURCE_DIR}
-    ${PROJECT_SOURCE_DIR}/external/spdlog/include
-    ${PROJECT_SOURCE_DIR}/external/VulkanMemoryAllocator/include
+    ${PROJECT_SOURCE_DIR}/extern/spdlog/include
+    ${PROJECT_SOURCE_DIR}/extern/VulkanMemoryAllocator/include
   )

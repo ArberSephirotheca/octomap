@@ -3,16 +3,16 @@
 
 using Ptr = uint8_t*;
 
-int atomic_max_i32(std::atomic<int>& dest, int val);
-void mutex_lock_i32(std::atomic<bool>& mutex);
-void mutex_unlock_i32(std::atomic<bool>& mutex);
+int atomic_max_i32(Ptr dest, int val);
+void mutex_lock_i32(Ptr mutex);
+void mutex_unlock_i32(Ptr mutex);
 
 
 template <typename T, typename G>
 class lock_guard {
  public:
   // TODO: do not use atomic here
-  lock_guard(std::atomic<bool> lock, const T &func, const G &test) {
+  lock_guard(Ptr lock, const T &func, const G &test) {
 //#if ARCH_x64 || ARCH_arm64
     mutex_lock_i32(lock);
     if (test())

@@ -370,8 +370,8 @@ void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
       RW_TRACE("Initializing allocator for snode {} (node size {})", snode_id,
                node_size);
       redwood::runtime::runtime_NodeAllocator_initialize(llvm_runtime, snode_id, node_size);
-      //RW_TRACE("Allocating ambient element for snode {} (node size {})",
-      //         snode_id, node_size);
+      RW_TRACE("Allocating ambient element for snode {} (node size {})",
+               snode_id, node_size);
       redwood::runtime::runtime_allocate_ambient(llvm_runtime, snode_id, node_size);
     }
   }
@@ -716,8 +716,8 @@ void LlvmRuntimeExecutor::cache_field(int snode_tree_id, int root_id, const Stru
     snode_cache_data.type = snodes[i]->type;
     snode_cache_data.cell_size_bytes = snodes[i]->cell_size_bytes;
     snode_cache_data.chunk_size = snodes[i]->chunk_size;
-    RW_INFO("Caching snode {} (type={})", snode_cache_data.id,
-            snode_cache_data.type);
+    //RW_INFO("Caching snode {} (type={})", snode_cache_data.id,
+    //        snode_cache_data.type);
     RW_INFO("  cell_size_bytes={}", snode_cache_data.cell_size_bytes);
     RW_INFO("  chunk_size={}", snode_cache_data.chunk_size);
     ret.snode_metas.emplace_back(std::move(snode_cache_data));
