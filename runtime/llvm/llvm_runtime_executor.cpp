@@ -622,12 +622,13 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
         config_.max_block_dim, 0, llvm_runtime_, starting_rand_state);
       */  
   } else {
-    //RW_TRACE("Initializing {} random states (serially)", num_rand_states);
+    RW_TRACE("Initializing {} random states (serially)", num_rand_states);
     auto llvm_runtime = static_cast<redwood::runtime::LLVMRuntime*>(llvm_runtime_);
     redwood::runtime::runtime_initialize_rand_states_serial(llvm_runtime, starting_rand_state);
   }
 
   if (arch_use_host_memory(config_.arch)) {
+    RW_TRACE("Initializing thread pool");
     auto llvm_runtime = static_cast<redwood::runtime::LLVMRuntime*>(llvm_runtime_);
     redwood::runtime::LLVMRuntime_initialize_thread_pool(llvm_runtime, thread_pool_.get(),
                                        (void *)ThreadPool::static_run);
@@ -653,6 +654,7 @@ void LlvmRuntimeExecutor::materialize_runtime(/*KernelProfilerBase *profiler,*/
 }
 
 SNodeTree* LlvmRuntimeExecutor::add_snode_tree(std::unique_ptr<SNode> root){
+  RW_TRACE("Adding snode tree");
   const int id = allocate_snode_tree_id();
   auto tree = std::make_unique<SNodeTree>(id, std::move(root));
   tree->root()->set_snode_tree_id(id);
@@ -662,6 +664,7 @@ SNodeTree* LlvmRuntimeExecutor::add_snode_tree(std::unique_ptr<SNode> root){
     program_impl_->compile_snode_tree_types(tree.get());
   } else {
     */
+   RW_TRACE("Materializing snode tree");
     materialize_snode_tree(tree.get(), result_buffer_);
   /*
   }

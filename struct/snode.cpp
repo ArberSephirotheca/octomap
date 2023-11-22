@@ -50,6 +50,8 @@ SNode &SNode::insert_children(SNodeType t) {
   std::unique_ptr<SNode> new_ch{nullptr};
    if (t == SNodeType::dynamic){
     new_ch = std::make_unique<DynamicNode>(depth + 1, t);
+  }else if (t == SNodeType::pointer){
+    new_ch = std::make_unique<PointerNode>(depth + 1, t);
   }else{
     new_ch = std::make_unique<SNode>(depth + 1, t);
   }

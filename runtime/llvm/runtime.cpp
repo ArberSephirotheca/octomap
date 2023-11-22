@@ -24,13 +24,13 @@ using parallel_for_type = void (*)(void *thread_pool,
 
 
 void ListManager::touch_chunk(int chunk_id) {
-  RW_INFO("ListManager::touch_chunk");
+  RW_INFO("ListManager::touch_chunk: chunk_id: {}", chunk_id);
   if (!chunks[chunk_id]){
+    RW_INFO("ListManager::touch_chunk: chunks[chunk_id] == nullptr");
     auto chunk_ptr = runtime->allocate_aligned(
             runtime->runtime_memory_chunk,
             max_num_elements_per_chunk * element_size, 4096, true);
-    // TODO: make it atomic
-    chunks[chunk_id] = chunk_ptr;
+    chunks[chunk_id].exchange(chunk_ptr);
     //std::atomic_exchange((Ptr *)&chunks[chunk_id], chunk_ptr);
   }
   /*
@@ -76,9 +76,8 @@ Ptr LLVMRuntime::allocate_aligned(PreallocatedMemoryChunk &memory_chunk,
                                   std::size_t size,
                                   std::size_t alignment,
                                   bool request) {
-  // TODO: make it atomic
   if (request)
-    total_requested_memory += size;
+    total_requested_memory.fetch_add(size);
     //atomic_add_i64(&total_requested_memory, size);
 
   // TODO: do it later for CUDA

@@ -92,12 +92,12 @@ void initialize_rand_state(RandState *state, uint32_t i);
 // are >= 2 ** 31 elements.
 struct ListManager {
   static constexpr std::size_t max_num_chunks = 128 * 1024;
-  Ptr chunks[max_num_chunks];
+  std::atomic<Ptr> chunks[max_num_chunks];
   std::size_t element_size{0};
   std::size_t max_num_elements_per_chunk;
   int32_t log2chunk_num_elements;
   int32_t lock;
-  int32_t num_elements;
+  std::atomic<int32_t> num_elements;
   LLVMRuntime *runtime;
 
   ListManager(LLVMRuntime *runtime,
@@ -118,11 +118,8 @@ struct ListManager {
   void append(void *data_ptr);
 
   int32_t reserve_new_element() {
-    // TODO: conisder using llvm::AtomicRMWInst for thread safety
-    //llvm::AtomicRMWInst(&num_elements, 1);
     RW_INFO("ListManager: reserve new element");
-    auto i = num_elements;
-    num_elements += 1;
+    auto i = num_elements.fetch_add(1);
     
     auto chunk_id = i >> log2chunk_num_elements;
     touch_chunk(chunk_id);
@@ -238,7 +235,7 @@ struct LLVMRuntime {
 
   int32_t num_rand_states;
 
-  int64_t total_requested_memory;
+  std::atomic<int64_t> total_requested_memory;
 
   template <typename T>
   void set_result(std::size_t i, T t) {
@@ -266,9 +263,9 @@ struct NodeManager {
 
   int32_t element_size;
   int32_t chunk_num_elements;
-  int32_t free_list_used;
+  std::atomic<int32_t> free_list_used;
 
-  ListManager *free_list, *recycled_list, *data_list;
+  ListManager *free_list, *recycled_list, *data_list, *element_lists;
   int32_t recycle_list_size_backup;
 
   using list_data_type = int32_t;
@@ -298,8 +295,7 @@ struct NodeManager {
 
   Ptr allocate() {
     RW_INFO("NodeManager: allocate");
-    // todo: make it atomic
-    int old_cursor = free_list_used + 1;
+    int old_cursor = free_list_used.fetch_add(1);
     int32_t l;
     if (old_cursor >= free_list->size()) {
       RW_INFO("NodeManager: running out of free list, allocate new element");

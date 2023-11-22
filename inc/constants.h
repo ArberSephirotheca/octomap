@@ -4,6 +4,7 @@ constexpr int redwood_max_num_indices = 12;
 constexpr int redwood_max_num_args_total = 64;
 constexpr int redwood_max_num_args_extra = 32;
 constexpr int redwood_max_num_snodes = 1024;
+constexpr int redwood_max_num_elements = 1024 * 1024;
 constexpr int kMaxNumSnodeTreesLlvm = 512;
 constexpr int redwood_max_gpu_block_dim = 1024;
 constexpr std::size_t redwood_global_tmp_buffer_size = 1024 * 1024;

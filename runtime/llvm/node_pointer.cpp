@@ -36,23 +36,18 @@ bool PointerNode::is_representative(uint32_t mask, uint64_t value) {
 
 void PointerNode::Pointer_activate(int i) {
   // TODO: something wrong with the base, check it later
-  Ptr base = this->runtime->element_lists[this->id+this->get_snode_tree_id()]->get_element_ptr(0);
-  RW_ASSERT(base != nullptr);
   auto num_elements = Pointer_get_num_elements();
   RW_INFO("Pointer_activate: num of max elements: {}", num_elements);
-  volatile Ptr lock = (Ptr)base + 8 * i;
-  *lock = std::atomic<uint64_t>(0);
+  std::atomic<uint64_t>* lock = this->locks + i;
   //RW_INFO("Pointer_activate: lock: {}", *lock);
   RW_INFO("Pointer_activate: lock");
-  volatile Ptr *data_ptr = (Ptr *)((Ptr)base + 8 * (num_elements + i));
-  RW_ASSERT(data_ptr != nullptr);
-  
+  Ptr *data_ptr = this->data_pointers + i;
   if (*data_ptr == nullptr) {
     RW_INFO("Pointer_activate: data_ptr == nullptr");
     // The cuda_ calls will return 0 or do noop on CPUs
     //uint32_t mask = cuda_active_mask();
-    if (is_representative(0, (uint64_t)lock)) {
-        
+   // if (is_representative(0, (uint64_t)lock)) {
+
       locked_task(
           lock,
           [&] {
@@ -65,20 +60,20 @@ void PointerNode::Pointer_activate(int i) {
            // atomic_exchange_u64((uint64_t *)data_ptr, allocated);
           },
           [&]() { return *data_ptr == nullptr; });
-    }
+    //}
     //warp_barrier(mask);
   }
 }
 
 void PointerNode::Pointer_deactivate(int i) {
   auto num_elements = Pointer_get_num_elements();
-  Ptr lock = (Ptr) this + 8 * i;
-  Ptr &data_ptr = *(Ptr *)(this + 8 * (num_elements + i));
+  std::atomic<uint64_t>* lock = this->locks + i;
+  Ptr *data_ptr = (Ptr *)(this->data_pointers + i);
   if (data_ptr != nullptr) {
     locked_task(lock, [&] {
       if (data_ptr != nullptr) {
         auto alloc = runtime->node_allocators[this->id];
-        alloc->recycle(data_ptr);
+        alloc->recycle(*data_ptr);
         data_ptr = nullptr;
       }
     });

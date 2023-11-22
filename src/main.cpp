@@ -826,9 +826,11 @@ void run_snode(){
     // euqivalent to place[5];
     pointer->Pointer_activate(4);
     // euqivalent to place[20];
-   // pointer->Pointer_activate(20);
+    pointer->Pointer_activate(16384);
     // euqivalent to place[40];
-   // pointer->Pointer_activate(40);
+    pointer->Pointer_activate(16387);
+    pointer->Pointer_activate(16387);
+    pointer->Pointer_activate(32000);
     
     //auto *cell = dynamic_2->Dynamic_lookup_element(3);
     //auto *node = reinterpret_cast<OctreeNode*>(cell);
