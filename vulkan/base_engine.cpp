@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#include "vulkan/vma_usage.h"
+#include "vulkan/vma_allocator.h"
 
 namespace redwood::lang {
     namespace vulkan{

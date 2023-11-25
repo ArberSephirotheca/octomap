@@ -27,7 +27,7 @@
 //#include "runtime/llvm/node_dynamic.h"
 #include "runtime/llvm/node_pointer.h"
 //#include "include/traditional_octree_cuda.hpp"
-#include "include/traditional_octree_cpu.hpp"
+//#include "include/traditional_octree_cpu.hpp"
 #include "include/traditional_octree.hpp"
 
 // #include "occupancy_map.hpp"
@@ -502,25 +502,6 @@ void test_allocator_octree(std::vector<Point>& points)
 }
 
 
-
-void test_allocator_octree_cpu(std::vector<Point>& points)
-{
-  auto start = std::chrono::high_resolution_clock::now();
-
-      redwood::lang::cpu::CpuDevice cpu_deivce = redwood::lang::cpu::CpuDevice();
-    Octree_CPU* octree = new Octree_CPU(0, 0, 0, 100, 100, 100, &cpu_deivce);
-
-
-    for(const auto& point : points){
-      octree->insert(point.x, point.y, point.z);
-    }
-    std::cout<<"find count: "<<octree->find_count<<std::endl;
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-  std::cout << "Time taken by processing octree in cpu: " << duration.count() << " milliseconds" << std::endl;
-    delete octree;
-}
-
 /*
 void test_allocator_octree_cuda()
 {
@@ -561,7 +542,7 @@ void test_allocator_octree_cuda()
   std::cout << "Time taken by processing octree in cuda: " << duration.count() << " milliseconds" << std::endl;
 }
 */
-
+/*
 void actual_work(int argc, char **argv){
  float compute_time;
   float sort_time;
@@ -653,12 +634,6 @@ void actual_work(int argc, char **argv){
 
   compute_time = TimeTask("Compute Morton Codes", [&]
                           { compute_morton_code_openmp(input_size, inputs, morton_keys, min_coord, range, num_threads); });
-  /*
-    // [Step 2] Sort Morton Codes by Key
-    sort_time = TimeTask("Sort Morton Codes radix sort",
-                         [&]
-                         { omp_lsd_radix_sort(morton_keys.size(), morton_keys, num_threads); });
-  */
   sort_time = TimeTask("Sort Morton Codes",
                        [&]
                        { std::sort(std::execution::par, morton_keys.begin(), morton_keys.end()); });
@@ -799,7 +774,7 @@ void actual_work(int argc, char **argv){
   std::cout << "Make Unlinked BH nodes Time: " << make_nodes_time << " (" << make_nodes_time / total_time * 100 << "%)" << std::endl;
   std::cout << "Link BH nodes Time: " << link_nodes_time << " (" << link_nodes_time / total_time * 100 << "%)" << std::endl;
 }
-
+*/
 
 void run_snode(){
     auto compile_config = CompileConfig();

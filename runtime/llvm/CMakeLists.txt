@@ -26,7 +26,7 @@ target_include_directories(llvm_runtime
   find_package(CUDA REQUIRED)
 include_directories(${CUDA_INCLUDE_DIRS})
 
-target_link_libraries(llvm_runtime PRIVATE cuda_redwood system_redwood program_redwood common_redwood)
+target_link_libraries(llvm_runtime PRIVATE cuda_redwood cpu_redwood system_redwood program_redwood common_redwood)
 
 
 #target_link_libraries(llvm_runtime PRIVATE ${llvm_ptx_libs})

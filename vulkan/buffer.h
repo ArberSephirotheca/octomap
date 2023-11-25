@@ -3,10 +3,11 @@
 #include <spdlog/spdlog.h>
 
 #include <numeric>
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 
 #include "vulkan/vma_allocator.h"
 #include "vulkan/vulkan_resource.h"
+#include "common/logging.h"
 
 namespace redwood::lang {
 namespace vulkan {
@@ -49,7 +50,7 @@ class Buffer final : public VulkanResource<vk::Buffer> {
   Buffer(const Buffer &) = delete;
 
   ~Buffer() override {
-    spdlog::debug("Buffer::~Buffer");
+    RW_DEBUG("Buffer::~Buffer");
     destroy();
   }
 
@@ -91,12 +92,12 @@ class Buffer final : public VulkanResource<vk::Buffer> {
   void tmp_write_data(const void *data,
                       const size_t size,
                       const size_t offset = 0) const {
-    spdlog::info("Writing {} bytes to buffer", size);
+    RW_INFO("Writing {} bytes to buffer", size);
     std::memcpy(mapped_data_ + offset, data, size);
   }
 
   void tmp_fill_zero(const size_t size, const size_t offset = 0) const {
-    spdlog::info("Filling zeros {} bytes to buffer", size);
+    RW_INFO("Filling zeros {} bytes to buffer", size);
     std::memset(mapped_data_ + offset, 0, size);
   }
 
